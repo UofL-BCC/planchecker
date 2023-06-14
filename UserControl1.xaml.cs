@@ -374,12 +374,11 @@ namespace PlanChecks
             this.ReportDataGrid.Items.Refresh();
             this.ReportDataGrid_Rx.Items.Refresh();
 
-            //manually setting the width for now
-            double columnWidth = 858 / 4;
 
-            ReportDataGrid.ColumnWidth = columnWidth;
 
-            ReportDataGrid_Rx.ColumnWidth = columnWidth;
+            ReportDataGrid.ColumnWidth = HorizontalStackPanel.Width / 4;
+
+            ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
 
 
         }

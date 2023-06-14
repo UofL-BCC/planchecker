@@ -11,7 +11,7 @@
     </UserControl.Background>
     <Grid>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Width="1000">
+        <StackPanel Name="HorizontalStackPanel" Orientation="Horizontal" HorizontalAlignment="Center" Width="1000">
 
 
             <StackPanel Orientation="Vertical" Width="1000" >
@@ -40,16 +40,6 @@
                         </Style>
                     </DataGrid.CellStyle>
 
-                    <DataGrid.Columns>
-                        <DataGridTextColumn>
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="TextWrapping" Value="Wrap"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                    </DataGrid.Columns>
-
 
                 </DataGrid>
 
@@ -61,7 +51,7 @@
                      FontSize="20" FontWeight="Bold" Width="128" />
 
                 <DataGrid Name="ReportDataGrid"   LoadingRow="ReportDataGrid_LoadingRow"
-                      ColumnWidth="*" Loaded="ReportDataGrid_Loaded" Height="100" FontFamily="Calibri" FontWeight="Bold" >
+                      ColumnWidth="*" Loaded="ReportDataGrid_Loaded" Height="NaN" FontFamily="Calibri" FontWeight="Bold" >
 
                     <DataGrid.CellStyle >
                         <Style TargetType="DataGridCell">
@@ -79,16 +69,6 @@
 
                         </Style>
                     </DataGrid.CellStyle>
-
-                    <DataGrid.Columns>
-                        <DataGridTextColumn>
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="TextWrapping" Value="Wrap"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                    </DataGrid.Columns>
 
                 </DataGrid>
 
