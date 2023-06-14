@@ -224,7 +224,42 @@ namespace PlanChecks
 
             //ReferencePoint refpoint = plan.AddReferencePoint(false, null, "TrackingPoint");
 
+            List<string> replaceStringList = new List<string>();
 
+            if (plan.RTPrescription.Notes != null)
+            {
+                string notes = plan.RTPrescription.Notes.Replace("\t", "").Replace("\n", "").Replace("\r", "");
+
+
+                if (notes.Length > 42 && notes.Length < 84)
+                {
+                    string replaceString = notes.Insert(42, "\n");
+
+                    replaceStringList.Add(replaceString);
+                }
+                if (notes.Length > 84)
+                {
+                    string replaceString = notes.Insert(42, "\n");
+                    string replaceString1 = replaceString.Insert(84, "\n");
+
+                    replaceStringList.Add(replaceString1);
+
+                }
+                if (notes.Length > 126)
+                {
+                    string replaceString = notes.Insert(42, "\n");
+                    string replaceString1 = replaceString.Insert(84, "\n");
+                    string replaceString2 = replaceString1.Insert(126, "\n");
+
+
+                    replaceStringList.Add(replaceString2);
+
+                }
+                else
+                {
+                    replaceStringList.Add(notes);
+                }
+            }
 
             //MessageBox.Show(truncatedStr);
 
@@ -248,7 +283,7 @@ namespace PlanChecks
 
             new Tuple<string, string, string, bool?>("Gating",  ((plan.RTPrescription.Gating=="") ? "NOT GATED" : plan.RTPrescription.Gating) , ((plan.UseGating) ? "GATED" : "NOT GATED")  , evalGated(plan)),
                 new Tuple<string, string, string, bool?>("Bolus", plan.RTPrescription.BolusThickness, usebolus, null),
-                new Tuple<string, string, string, bool?>("Notes", plan.RTPrescription.Notes, "", null),
+                new Tuple<string, string, string, bool?>("Notes", replaceStringList.First(), "", null),
 
                 //to add:
             //treatment site AND laterality
