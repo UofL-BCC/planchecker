@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -122,6 +122,7 @@ namespace PlanChecks
             string toleranceTables = "";
             tolTablesUsed(plan, out toleranceTables);
 
+            checkplantech(plan, out techname);
 
             /* RX CHECK STUFF
              * 
@@ -129,72 +130,177 @@ namespace PlanChecks
              * 
              */
             string modes = "";
-
-            foreach (var mode in plan.RTPrescription.EnergyModes)
+            List<Tuple<string, string, string, bool?>> OutputList2 = new List<Tuple<string, string, string, bool?>>()
             {
-                modes += mode;
 
+            };
+
+            if (plan.RTPrescription == null)
+            {
+                OutputList2.Add(new Tuple<string, string, string, bool?>("RX Available", "Need Rx", "No attached Rx", false));
             }
-            string NumOfFx = "";
-            string DosePerFx = "";
-            string TypeOfRx = "";
-            string TargetID = "";
-            string ValueRX = "";
-            double tempz = 0;
-
-            foreach (var target in plan.RTPrescription.Targets) //currently only returning largest dose target
+            else
             {
-                if (tempz < target.DosePerFraction.Dose)
+                foreach (var mode in plan.RTPrescription.EnergyModes)
                 {
-                    NumOfFx = target.NumberOfFractions.ToString();
-                    DosePerFx = target.DosePerFraction.ToString();
-                    TypeOfRx = target.Type.ToString();
-                    TargetID = target.TargetId;
-                    ValueRX = target.Value.ToString();
-                    tempz = target.DosePerFraction.Dose;
-                }
-            }
+                    modes += mode;
 
-            List<string> energList = new List<string>();
-            foreach (var energy in plan.RTPrescription.Energies)
-            {
-                if (energy == "10xFFF")
-                {
-                    energList.Add("10X-FFF"); ;
                 }
-                else if (energy == "6xFFF")
-                {
-                    energList.Add("6X-FFF");
-                }
-                else
-                {
-                    energList.Add(energy);
-                }
-                energList.Sort();
+                string NumOfFx = "";
+                string DosePerFx = "";
+                string TypeOfRx = "";
+                string TargetID = "";
+                string ValueRX = "";
+                double tempz = 0;
 
-            }
-            string energies = string.Join(", ", energList.ToArray());
-
-            string usebolus = "";
-            foreach (var beam in plan.Beams)
-            {
-                foreach (var bolus in beam.Boluses)
+                foreach (var target in plan.RTPrescription.Targets) //currently only returning largest dose target
                 {
-                    if (usebolus != bolus.Id)
+                    if (tempz < target.DosePerFraction.Dose)
                     {
-                        usebolus += bolus.Id;
+                        NumOfFx = target.NumberOfFractions.ToString();
+                        DosePerFx = target.DosePerFraction.ToString();
+                        TypeOfRx = target.Type.ToString();
+                        TargetID = target.TargetId;
+                        ValueRX = target.Value.ToString();
+                        tempz = target.DosePerFraction.Dose;
                     }
                 }
+
+                List<string> energList = new List<string>();
+                foreach (var energy in plan.RTPrescription.Energies)
+                {
+                    if (energy == "10xFFF")
+                    {
+                        energList.Add("10X-FFF"); ;
+                    }
+                    else if (energy == "6xFFF")
+                    {
+                        energList.Add("6X-FFF");
+                    }
+                    else
+                    {
+                        energList.Add(energy);
+                    }
+                    energList.Sort();
+
+                }
+                string energies = string.Join(", ", energList.ToArray());
+                bool techpass = false;
+                //checkplantech(plan, out techname, out techpass);
+                checkplantechmatchesRX(plan, ref techname, out techpass);
+
+                string usebolus = "";
+                foreach (var beam in plan.Beams)
+                {
+                    foreach (var bolus in beam.Boluses)
+                    {
+                        if (usebolus != bolus.Id)
+                        {
+                            usebolus += bolus.Id;
+                        }
+                    }
+                }
+
+                List<string> replaceStringList = new List<string>();
+
+                if (plan.RTPrescription.Notes != null)
+                {
+                    string notes = plan.RTPrescription.Notes.Replace("\t", "").Replace("\n", "").Replace("\r", "");
+
+
+                    if (notes.Length > 42 && notes.Length < 84)
+                    {
+                        string replaceString = notes.Insert(42, "\n");
+
+                        replaceStringList.Add(replaceString);
+                    }
+                    if (notes.Length > 84)
+                    {
+                        string replaceString = notes.Insert(42, "\n");
+                        string replaceString1 = replaceString.Insert(84, "\n");
+
+                        replaceStringList.Add(replaceString1);
+
+                    }
+                    if (notes.Length > 126)
+                    {
+                        string replaceString = notes.Insert(42, "\n");
+                        string replaceString1 = replaceString.Insert(84, "\n");
+                        string replaceString2 = replaceString1.Insert(126, "\n");
+
+
+                        replaceStringList.Add(replaceString2);
+
+                    }
+                    else
+                    {
+                        replaceStringList.Add(notes);
+                    }
+                }
+                /* RX CHECK STUFF
+             * 
+             * 
+             * 
+             */
+                //List<Tuple<string, string, string, bool?>> OutputList2 = new List<Tuple<string, string, string, bool?>>()
+                //{
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Approval", plan.RTPrescription.Status, ((plan.PlanningApproverDisplayName != "") ? "PlanningApproved" : "Not PlanningApproved"), ((plan.RTPrescription.Status == "Approved") ? true : false)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("By", plan.RTPrescription.HistoryUserDisplayName, plan.PlanningApproverDisplayName, (((plan.RTPrescription.HistoryUserDisplayName.ToLower().Contains("attending")) && (plan.RTPrescription.HistoryUserDisplayName == plan.PlanningApproverDisplayName)) ? true : (bool?)null)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("# of Fx", NumOfFx, plan.NumberOfFractions.ToString(), (NumOfFx == plan.NumberOfFractions.ToString())));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Dose/Fx", DosePerFx, plan.DosePerFraction.ToString(), (DosePerFx == plan.DosePerFraction.ToString())));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Mode", modes, getPlanMode(plan), (modes == getPlanMode(plan))));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Target", TargetID, plan.TargetVolumeID, ((TargetID == plan.TargetVolumeID) ? true : (bool?)null)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Energy", energies, getPlanEnergy(plan), (energies == getPlanEnergy(plan))));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Technique", plan.RTPrescription.Technique, techname, ((techpass) ? true : (bool?)null)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Gating", ((plan.RTPrescription.Gating == "") ? "NOT GATED" : plan.RTPrescription.Gating), ((plan.UseGating) ? "GATED" : "NOT GATED"), evalGated(plan)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Bolus", plan.RTPrescription.BolusThickness, usebolus, null));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Notes", replaceStringList.First(), "", null));
+
+
+
+
+
+                //to add:
+            //treatment site AND laterality
+            //Time interval (BID)
+            //image guidance 
+            //};
             }
 
-            bool techpass = false;
-            checkplantech(plan, out techname, out techpass);
+            
+
+            
+
+            
+
+            
+            
+
+
+
+            //int CTdiffdays = int.Parse(truncatedStr);
+
+
+            
+
+            //ReferencePoint refpoint = plan.AddReferencePoint(false, null, "TrackingPoint");
+
+            
+
+            //MessageBox.Show(truncatedStr);
+
+            
+
+           
+
+            
             string jawtrackingexpected = "Off";
             if (techname == "VMAT" || techname == "SRS/SBRT" || techname == "IMRT")
             {
                 jawtrackingexpected = "Enabled";
             }
-            string isJawTrackingOn = (plan.OptimizationSetup.Parameters.Any(x => x is OptimizationJawTrackingUsedParameter)) ? "Enabled" : "Off" ;
+
+            string isJawTrackingOn = (plan.OptimizationSetup.Parameters.Any(x => x is OptimizationJawTrackingUsedParameter)) ? "Enabled" : "Off";
 
             double totalMUdoub = totalMU(plan);
 
@@ -213,84 +319,11 @@ namespace PlanChecks
             {
 
             }
-
             double artifactChecked = checkArtifact(plan);
 
-
-            //int CTdiffdays = int.Parse(truncatedStr);
-
-
-            string fullcoverage= checkDoseCoverage(plan);
-
-            //ReferencePoint refpoint = plan.AddReferencePoint(false, null, "TrackingPoint");
-
-            List<string> replaceStringList = new List<string>();
-
-            if (plan.RTPrescription.Notes != null)
-            {
-                string notes = plan.RTPrescription.Notes.Replace("\t", "").Replace("\n", "").Replace("\r", "");
-
-
-                if (notes.Length > 42 && notes.Length < 84)
-                {
-                    string replaceString = notes.Insert(42, "\n");
-
-                    replaceStringList.Add(replaceString);
-                }
-                if (notes.Length > 84)
-                {
-                    string replaceString = notes.Insert(42, "\n");
-                    string replaceString1 = replaceString.Insert(84, "\n");
-
-                    replaceStringList.Add(replaceString1);
-
-                }
-                if (notes.Length > 126)
-                {
-                    string replaceString = notes.Insert(42, "\n");
-                    string replaceString1 = replaceString.Insert(84, "\n");
-                    string replaceString2 = replaceString1.Insert(126, "\n");
-
-
-                    replaceStringList.Add(replaceString2);
-
-                }
-                else
-                {
-                    replaceStringList.Add(notes);
-                }
-            }
-
-            //MessageBox.Show(truncatedStr);
-
-            /* RX CHECK STUFF
-             * 
-             * 
-             * 
-             */
-            List<Tuple<string, string, string, bool?>> OutputList2 = new List<Tuple<string, string, string, bool?>>()
-            {
-                new Tuple<string, string, string, bool?>("Approval", plan.RTPrescription.Status,  ((plan.PlanningApproverDisplayName!= "") ? "PlanningApproved" : "Not PlanningApproved"),  ((plan.RTPrescription.Status == "Approved") ? true : false)),
-                new Tuple<string, string, string, bool?>("By", plan.RTPrescription.HistoryUserDisplayName, plan.PlanningApproverDisplayName, (((plan.RTPrescription.HistoryUserDisplayName.ToLower().Contains("attending"))&&(plan.RTPrescription.HistoryUserDisplayName==plan.PlanningApproverDisplayName)) ? true : (bool?)null)),
-                new Tuple<string, string, string, bool?>("# of Fx", NumOfFx, plan.NumberOfFractions.ToString(), (NumOfFx== plan.NumberOfFractions.ToString())),
-                new Tuple<string, string, string, bool?>("Dose/Fx", DosePerFx, plan.DosePerFraction.ToString(), (DosePerFx == plan.DosePerFraction.ToString())),
-                new Tuple<string, string, string, bool?>("Mode", modes, getPlanMode(plan),(modes == getPlanMode(plan))),
-                new Tuple<string, string, string, bool?>("Target", TargetID, plan.TargetVolumeID,  ((TargetID== plan.TargetVolumeID) ? true :  (bool?)null)),
-                new Tuple<string, string, string, bool?>("Energy", energies, getPlanEnergy(plan), (energies== getPlanEnergy(plan))),
-                new Tuple<string, string, string, bool?>("Technique", plan.RTPrescription.Technique, techname, ((techpass) ? true :  (bool?)null)),
-
-
-
-            new Tuple<string, string, string, bool?>("Gating",  ((plan.RTPrescription.Gating=="") ? "NOT GATED" : plan.RTPrescription.Gating) , ((plan.UseGating) ? "GATED" : "NOT GATED")  , evalGated(plan)),
-                new Tuple<string, string, string, bool?>("Bolus", plan.RTPrescription.BolusThickness, usebolus, null),
-                new Tuple<string, string, string, bool?>("Notes", replaceStringList.First(), "", null),
-
-                //to add:
-            //treatment site AND laterality
-            //Time interval (BID)
-            //image guidance 
-            };
-
+            string fullcoverage = checkDoseCoverage(plan);
+            
+            
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
 
@@ -460,15 +493,46 @@ namespace PlanChecks
 
             }
         }
+        public static void checkplantechmatchesRX(PlanSetup plan, ref string techname, out bool techpass)
+        {
+            //bool sametech = true;
 
-            public static void checkplantech(PlanSetup plan, out string techname, out bool techpass)
+            techpass = false;
+
+            if (techname == "3 D CRT")
+            {
+                if (plan.RTPrescription.Technique.ToLower() == "ap/pa" || plan.RTPrescription.Technique.ToLower() == "opposed laterals" || plan.RTPrescription.Technique.ToLower() == "3 d crt")
+                {
+                    techpass = true;
+                }
+
+            }
+            else if (techname == "SRS/SBRT")
+            {
+                if (plan.RTPrescription.Technique.ToLower() == "srs" || plan.RTPrescription.Technique.ToLower() == "sbrt")
+                {
+                    techpass = true;
+                }
+
+            }
+            else if (plan.RTPrescription.Technique == techname)
+            {
+                techpass = true;
+            }
+            else
+            {
+                techpass = false;
+            }
+        }
+
+        public static void checkplantech(PlanSetup plan, out string techname)
         {
 
             bool sametech = true;
             string tech = "ZZZZZZZZZ";
             string temptech = "";
             int numControlPts = 0;
-            techpass = false;
+            //techpass = false;
 
             string[] electrons = { "6E", "9E", "12E", "16E", "20E" };
 
@@ -569,30 +633,7 @@ namespace PlanChecks
 
             }
 
-            if (tech == "3 D CRT")
-            {
-                if (plan.RTPrescription.Technique.ToLower() == "ap/pa" || plan.RTPrescription.Technique.ToLower() == "opposed laterals" || plan.RTPrescription.Technique.ToLower() == "3 d crt")
-                {
-                    techpass = true;
-                }
-
-            }
-            else if (tech == "SRS/SBRT")
-            {
-                if (plan.RTPrescription.Technique.ToLower() == "srs" || plan.RTPrescription.Technique.ToLower() == "sbrt")
-                {
-                    techpass = true;
-                }
-
-            }
-            else if (plan.RTPrescription.Technique == tech)
-            {
-                techpass = true;
-            }
-            else
-            {
-                techpass = false;
-            }
+            
 
 
 
