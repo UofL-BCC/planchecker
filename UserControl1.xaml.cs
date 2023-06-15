@@ -124,6 +124,18 @@ namespace PlanChecks
 
             checkplantech(plan, out techname);
 
+            string usebolus = "";
+            foreach (var beam in plan.Beams)
+            {
+                foreach (var bolus in beam.Boluses)
+                {
+                    if (usebolus != bolus.Id)
+                    {
+                        usebolus += bolus.Id;
+                    }
+                }
+            }
+
             /* RX CHECK STUFF
              * 
              * 
@@ -189,17 +201,7 @@ namespace PlanChecks
                 //checkplantech(plan, out techname, out techpass);
                 checkplantechmatchesRX(plan, ref techname, out techpass);
 
-                string usebolus = "";
-                foreach (var beam in plan.Beams)
-                {
-                    foreach (var bolus in beam.Boluses)
-                    {
-                        if (usebolus != bolus.Id)
-                        {
-                            usebolus += bolus.Id;
-                        }
-                    }
-                }
+               
 
                 List<string> replaceStringList = new List<string>();
 
@@ -322,8 +324,9 @@ namespace PlanChecks
             double artifactChecked = checkArtifact(plan);
 
             string fullcoverage = checkDoseCoverage(plan);
-            
-            
+
+            string needflash = "";
+
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
 
@@ -355,10 +358,11 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
+                new Tuple<string, string, string, bool?>("Flash VMAT", checkIfShouldUseFlash(plan, needflash), checkIfUsingFlash(plan, usebolus), (bool?)null),
 
 
 
-
+            
             //stray voxels - check if gaps between slices? check volume of parts somehow?  GetNumberOfSeparateParts()
 
 
@@ -422,7 +426,50 @@ namespace PlanChecks
 
 
         }
+        public static string checkIfShouldUseFlash(PlanSetup plan, string needflash)
+        {
 
+            // MessageBox.Show(plan.Id);
+            if (plan.Id.Contains("APBI"))
+            {
+                needflash = "Flash not needed";
+                return needflash;
+            }
+
+            var CheckBeamsForVMAT = plan.Beams.Where(b => b.IsSetupField != true).FirstOrDefault();
+
+            if (CheckBeamsForVMAT.MLCPlanType == MLCPlanType.VMAT)
+            {
+                if (plan.Id.Contains("CW") || plan.Id.Contains("Breast"))
+                {
+                    needflash = "Flash expected";
+                    return needflash;
+                }
+            }
+            return needflash;
+        }
+
+        public static string checkIfUsingFlash(PlanSetup plan, string usebolus)
+        {
+            //when do we need flash? when it's chestwall or breast site. when it's VMAT technique. 
+            //how to tell we used it? when there's an EXP structure and an unlinked bolus. 
+            string useflash = "Flash not used";
+            var CheckExpStructures = plan.StructureSet.Structures.Where(s => s.Id.ToLower().Contains("exp")).FirstOrDefault();
+            var CheckBolusStructures = plan.StructureSet.Structures.Where(s => s.DicomType == "BOLUS").FirstOrDefault();
+            var CheckBeamsForVMAT = plan.Beams.Where(b => b.IsSetupField != true).FirstOrDefault();
+
+            if (CheckExpStructures != null && usebolus == "" && CheckBolusStructures != null && CheckBeamsForVMAT.MLCPlanType == MLCPlanType.VMAT)
+            {
+                //if there's an "expanded" structure 
+                //if there's no linked bolus to beams
+                //if there's a bolus structure
+                //if it's a vmat plan
+                useflash = "Flash used";
+            }
+
+            return useflash;
+
+        }
         public static double maxMU(PlanSetup plan)
         {
 
