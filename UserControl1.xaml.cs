@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -100,7 +100,7 @@ namespace PlanChecks
                 couches.Add("RightInnerRail");
                 couches.Add("RightOuterRail");
             }
-            else if (machname == "TrueBeamB")
+            else if (machname == "TrueBeamB" || machname == "TrueBeamNE")
             {
                 couches.Add("CouchInterior");
                 couches.Add("CouchSurface");
@@ -380,8 +380,15 @@ namespace PlanChecks
 
         };
 
-
-
+            if (machname== "TrueBeamNE")
+            {
+                var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
+                if(beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC"){
+                    
+                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE","NO SRS AT NE", false));
+                }
+            }
+        
             OutputList.Reverse();
             OutputListRX.Reverse();
 

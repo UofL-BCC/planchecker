@@ -1,5 +1,4 @@
-Make exception for plans without Rx to skip the Rx checks instead of erroring out
+Make exception for plans without Dose to still work instead of erroring out
 Check for bolus structure on VMAT flash plans
 Check for no optimization priority of 999
-Check for no SRS technique at Northeast
 Check that Rapidplan is used when available. 
