@@ -1072,7 +1072,7 @@ namespace PlanChecks
         public static bool findIsoStructure(PlanSetup plan)
         {
 
-            var isoStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.Id.StartsWith("ISO") && s.DicomType != "MARKER");
+            var isoStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.Id.Contains("ISO") && s.DicomType != "MARKER");
             //iso structure and iso marker may vary slighty. we are going to rely on the structure. 
 
             if (isoStructure != null)
