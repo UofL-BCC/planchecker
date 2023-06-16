@@ -268,34 +268,7 @@ namespace PlanChecks
             //image guidance 
             //};
             }
-
-            
-
-            
-
-            
-
-            
-            
-
-
-
-            //int CTdiffdays = int.Parse(truncatedStr);
-
-
-            
-
-            //ReferencePoint refpoint = plan.AddReferencePoint(false, null, "TrackingPoint");
-
-            
-
-            //MessageBox.Show(truncatedStr);
-
-            
-
-           
-
-            
+          
             string jawtrackingexpected = "Off";
             if (techname == "VMAT" || techname == "SRS/SBRT" || techname == "IMRT")
             {
@@ -332,7 +305,9 @@ namespace PlanChecks
             string flash1 = checkIfShouldUseFlash(plan, needflash);
             string flash2 = checkIfUsingFlash(plan, usebolus);
 
-
+            string rpused = "No";
+            string rpavail = "No";
+            checkRapidplan(plan, out rpused, out rpavail);
 
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
@@ -365,10 +340,10 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : false),
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
-                new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
-
+                new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
+                new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
 
 
             
@@ -435,6 +410,25 @@ namespace PlanChecks
 
 
         }
+
+
+        public static void checkRapidplan(PlanSetup plan, out string rpused, out string rpavail)
+        {
+            rpused = "No";
+            rpavail = "No";
+            var CheckBeamsForVMAT = plan.Beams.Where(b => b.IsSetupField != true).FirstOrDefault();
+
+            if (plan.DVHEstimates.Count() != 0)
+            {
+                rpused = "Yes";
+            }
+
+            if (CheckBeamsForVMAT.MLCPlanType == MLCPlanType.VMAT && (plan.Id.ToLower().Contains("prostate") || plan.Id.ToLower().Contains("lung") || plan.Id.ToLower().Contains("apbi") || plan.Id.ToLower().Contains("gbm") || plan.Id.ToLower().Contains("pelvis")))
+            {
+                rpavail = "Yes";
+            }
+        }
+
         public static string checkObjectives(PlanSetup plan)
         {
 
