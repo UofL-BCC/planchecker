@@ -325,7 +325,15 @@ namespace PlanChecks
 
             string fullcoverage = checkDoseCoverage(plan);
 
-            string needflash = "";
+            string needflash = "Flash not used";
+
+            string wrongObjectives = checkObjectives(plan);
+
+            string flash1 = checkIfShouldUseFlash(plan, needflash);
+            string flash2 = checkIfUsingFlash(plan, usebolus);
+
+
+
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
@@ -358,8 +366,9 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
-                new Tuple<string, string, string, bool?>("Flash VMAT", checkIfShouldUseFlash(plan, needflash), checkIfUsingFlash(plan, usebolus), (bool?)null),
+                new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
 
+                new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
 
 
             
@@ -426,13 +435,28 @@ namespace PlanChecks
 
 
         }
+        public static string checkObjectives(PlanSetup plan)
+        {
+
+            var objectives = plan.OptimizationSetup.Objectives;
+            foreach (var objective in objectives)
+            {
+                if (objective.Priority == 999)
+                {
+                    return "999!!!";
+                }
+
+            }
+            return "<999";
+        }
+
         public static string checkIfShouldUseFlash(PlanSetup plan, string needflash)
         {
 
             // MessageBox.Show(plan.Id);
             if (plan.Id.Contains("APBI"))
             {
-                needflash = "Flash not needed";
+                needflash = "Flash not used";
                 return needflash;
             }
 
@@ -442,7 +466,7 @@ namespace PlanChecks
             {
                 if (plan.Id.Contains("CW") || plan.Id.Contains("Breast"))
                 {
-                    needflash = "Flash expected";
+                    needflash = "Flash used";
                     return needflash;
                 }
             }
