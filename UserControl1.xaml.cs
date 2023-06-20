@@ -340,7 +340,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : false),
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
-                new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
+                //new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
                 new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
@@ -350,10 +350,6 @@ namespace PlanChecks
             //stray voxels - check if gaps between slices? check volume of parts somehow?  GetNumberOfSeparateParts()
 
 
-            //tolerance table set
-            //no contours(including body/external) outside dose grid [check that DVH structure dose coverage is 100%?. And sample coverage?]
-            //CT/Structureset is older than plan and within 21 days from plan? 
-            //correct CT? based on what? date? 
             //normalization mode?
 
             //if PRIMARY reference point, that it's getting Rx dose
@@ -458,7 +454,7 @@ namespace PlanChecks
 
             if (CheckBeamsForVMAT.MLCPlanType == MLCPlanType.VMAT)
             {
-                if (plan.Id.Contains("CW") || plan.Id.Contains("Breast"))
+                if (plan.Id.Contains("CW") || plan.Id.ToLower().Contains("breast") || plan.Id.ToLower().Contains("brst"))
                 {
                     needflash = "Flash used";
                     return needflash;
@@ -470,9 +466,9 @@ namespace PlanChecks
         public static string checkIfUsingFlash(PlanSetup plan, string usebolus)
         {
             //when do we need flash? when it's chestwall or breast site. when it's VMAT technique. 
-            //how to tell we used it? when there's an EXP structure and an unlinked bolus. 
+            //how to tell we used it? when there's an EXP structure and an unlinked bolus. (but could be flash + bolus...)
             string useflash = "Flash not used";
-            var CheckExpStructures = plan.StructureSet.Structures.Where(s => s.Id.ToLower().Contains("exp")).FirstOrDefault();
+            var CheckExpStructures = plan.StructureSet.Structures.Where(s => s.Id.ToLower().Contains("exp") || s.Id.ToLower().Contains("opt")).FirstOrDefault();
             var CheckBolusStructures = plan.StructureSet.Structures.Where(s => s.DicomType == "BOLUS").FirstOrDefault();
             var CheckBeamsForVMAT = plan.Beams.Where(b => b.IsSetupField != true).FirstOrDefault();
 
@@ -1047,6 +1043,8 @@ namespace PlanChecks
                 }
             }
             ratename = samerate ? rate.ToString() : "Different Dose Rates";
+
+            if (rate < 600) { ratename = "LOW DOSE RATE"; samerate = false; }
         }
         public static void checktech(PlanSetup plan, out bool sametech, out string techname)
         {

@@ -1,4 +1,2 @@
 Make exception for plans without Dose to still work instead of erroring out
-Check for bolus structure on VMAT flash plans
-Check for no optimization priority of 999
-Check that Rapidplan is used when available. 
+collision checker
