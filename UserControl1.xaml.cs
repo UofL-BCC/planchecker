@@ -309,6 +309,8 @@ namespace PlanChecks
             string rpavail = "No";
             checkRapidplan(plan, out rpused, out rpavail);
 
+            string checkWedgeMU = checkEDWmin(plan);
+
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
@@ -335,13 +337,14 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
-                
+                new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
+
                 new Tuple<string, string, string, bool?>("Total Plan MU", "<=4000", totalMUdoub.ToString(),  (totalMUdoub <= 4000)? true : false),
                 new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : false),
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
                 //new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
-                new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
+                //new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
 
@@ -484,6 +487,32 @@ namespace PlanChecks
             return useflash;
 
         }
+
+        public static string checkEDWmin(PlanSetup plan)
+        {
+            string result = "Wedges ok";
+            bool anywedges = false;
+
+            foreach (var beam in plan.Beams)
+            {
+                if (beam.Wedges.Count() > 0)
+                { //beam has wedge
+                    anywedges = true;
+                    if (Math.Round(beam.Meterset.Value) < 20)
+                    {
+                        result = Math.Round(beam.Meterset.Value).ToString();
+                    }
+                }
+            }
+
+            if (anywedges == false)
+            {
+                result = "No wedges";
+            }
+
+            return result;
+        }
+
         public static double maxMU(PlanSetup plan)
         {
 
@@ -584,6 +613,10 @@ namespace PlanChecks
 
             }
             else if (plan.RTPrescription.Technique == techname)
+            {
+                techpass = true;
+            }
+            else if(plan.RTPrescription.Technique == "IMRT" && techname == "VMAT")
             {
                 techpass = true;
             }
