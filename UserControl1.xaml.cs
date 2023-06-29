@@ -1176,9 +1176,9 @@ namespace PlanChecks
                 var isoPoint = isoStructure.CenterPoint;
                 var originPoint = plan.StructureSet.Image.UserOrigin;
                
-                if (Math.Abs(isoPoint.x - originPoint.x) < 0.001 &&
-                    Math.Abs(isoPoint.y - originPoint.y) < 0.001 &&
-                    Math.Abs(isoPoint.z - originPoint.z) < 0.001)
+                if (Math.Abs(isoPoint.x - originPoint.x) < 0.005 &&
+                    Math.Abs(isoPoint.y - originPoint.y) < 0.005 &&
+                    Math.Abs(isoPoint.z - originPoint.z) < 0.005)
                 {
                     return true;
                 }
