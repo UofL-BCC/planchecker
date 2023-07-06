@@ -429,9 +429,11 @@ namespace PlanChecks
 
 
 
-            ReportDataGrid.ColumnWidth = HorizontalStackPanel.Width / 4;
+            //ReportDataGrid.ColumnWidth = HorizontalStackPanel.Width / 4;
+            ReportDataGrid.ColumnWidth = HorizontalStackPanel.Width / 6;
 
-            ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
+            //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
+            ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
 
 
         }
@@ -1214,13 +1216,13 @@ namespace PlanChecks
         }
 
 
-        //takes a few mintes at the moment
+        
         //add cone for electron checks (about 3.5cm clearance)
         public static void CollisionCheck(PlanSetup plan)
         {
             //38 cm from iso = nono
-            //B couch is inserted in plan
-            //A/F couches are not
+            //couches are inserted in plan as support structures
+            //If theres no couch it's prob a H/N with the baseplate included in the exteral
             //only create cylinder for arc lengths
             //only create cylinder ~ 25cm north and south of iso (this is where machine head will be)
             //reduce sampling rate on cylinder
@@ -1240,33 +1242,41 @@ namespace PlanChecks
 
             Point3DCollection bodyMeshPoints = body.MeshGeometry.Positions;
 
-            foreach (var point in bodyMeshPoints)
-            {
-                //do not print all the body points
+            Point3DCollection BodyPlusCouch = new Point3DCollection();
 
 
-
-
-
-            }
-
+            //insert couches/baseplate
             if (basePlate == null && supportStructures.Any() == false )
             {
                 //couch structures or baseplate are missing
+                BodyPlusCouch = bodyMeshPoints;
+                MessageBox.Show("couch structures or baseplate missing");
             }
             else if (supportStructures.Any())
             {
                 //add their mesh to the body mesh
+                foreach (var couchStruct in supportStructures)
+                {
+                    if (couchStruct.Id.ToLower().Contains("couchsurface"))
+                    {
+                        var concattedLists = bodyMeshPoints.Concat(couchStruct.MeshGeometry.Positions);
+
+                        Point3DCollection point3Ds = new Point3DCollection(concattedLists);
+                        BodyPlusCouch = point3Ds;
+
+                    }
+                }
             }
             else
             {
-                //add the baseplate to the body mesh
+                BodyPlusCouch = bodyMeshPoints;
             }
-
+          
+            
 
             var GantryCirclePoints = AddCylinderToMesh(plan);
 
-            var shortestDistance = ShortestDistance(bodyMeshPoints.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition);
+            var shortestDistance = ShortestDistance(BodyPlusCouch.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition);
             //list of 2 points,  body and cylinder points that have the shortes distance between them
             var resultingCoords = changeDICOMtoUserCoords(shortestDistance, plan);
             //plan.StructureSet.Image.DicomToUser(new VVector(shortestDistance.Item2.X, shortestDistance.Item2.Y, shortestDistance.Item2.Z), plan);
@@ -1276,7 +1286,7 @@ namespace PlanChecks
 
         }
 
-        //converts dicom coords to user coords in cm
+        //converts dicom coords in mm to user coords in cm
         public static List<VVector> changeDICOMtoUserCoords(Tuple<Point3D, Point3D, double> tuple, PlanSetup plan)
         {
             var usercorrds = plan.StructureSet.Image.DicomToUser(new VVector(tuple.Item1.X, tuple.Item1.Y, tuple.Item1.Z), plan);
@@ -1301,6 +1311,8 @@ namespace PlanChecks
 
             var isoSlice = FindIsoSlice(isocenter, body, plan);
 
+
+            //add if statement for electron (radius will be smaller)
             var GantryCirclePoints = CreateGantryCircle(isocenter, 380, plan.StructureSet.Image, 10, plan);
 
             return GantryCirclePoints;
@@ -1374,10 +1386,13 @@ namespace PlanChecks
             List<Point3D> AllPoints = new List<Point3D>();
 
 
-            
-            //extend the circle to a cylinder, only go ~25cm north and south
+            //and iff statement for the z direction if plan is electrons
+
+
+
+            //extend the circle to a cylinder, only go ~30cm north and south
             //iterate according to the slice thickness
-            for (int i = 1; i < Math.Round(350 / sliceThickness); i++)
+            for (int i = 1; i < Math.Round(300 / sliceThickness); i++)
             {
                 foreach (var point in oneSlicePointList)
                 {
@@ -1429,11 +1444,11 @@ namespace PlanChecks
             int i = 0;
 
             //only use body points which are in the neighborhood of the iso in the z direction
-            var zList = bodyMeshPositions.Select(c => c.Z).ToList();
+            var zList = cylinderMeshPositions.Select(c => c.Z).ToList();
             zList.Sort();
             var zMin = zList.First();
             var zMax = zList.Last();
-            var nearbyBodyPositions = bodyMeshPositions.Where(x => x.Z <= zMax && x.Z >= zMin).ToList();
+            var nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
 
             //group the cylinder positions together with cylinder positions? to prevent the farthest ones away to have to compare
             var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Z).ToList();
@@ -1457,6 +1472,7 @@ namespace PlanChecks
                                     i++;
                                     double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
                                         + (Math.Pow((point2.Z - point1.Z), 2)))) / 10;
+                                   
                                     if (distance < shortestDistance)
                                     {
                                         shortestDistance = distance;
@@ -1482,15 +1498,16 @@ namespace PlanChecks
 
             }
 
-            MessageBox.Show(i.ToString());
+            //messages to show number of points found
+            //MessageBox.Show(i.ToString());
 
 
-            MessageBox.Show(nearbyBodyPositions.Count.ToString() + " body positions");
-            MessageBox.Show(cylinderMeshPositions.Count.ToString() + " cylinder positions");
+            //MessageBox.Show(nearbyBodyPositions.Count.ToString() + " body positions");
+            //MessageBox.Show(cylinderMeshPositions.Count.ToString() + " cylinder positions");
 
 
             //get every 10th point form the body mesh
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 3 == 0).ToList();
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 30 == 0).ToList();
             //add the points to a view for debugging
             PointsVisual3D pointsVisual3D = new PointsVisual3D()
             {
@@ -1513,8 +1530,21 @@ namespace PlanChecks
             modelVisual3D.Children.Add(pointsVisual3Dcyl);
             viewPort.Children.Add(modelVisual3D);
 
+            
 
+            PerspectiveCamera camera = new PerspectiveCamera()
+            {
+                Position = new Point3D(42, 87, 5000),
+                LookDirection = new Vector3D(0, 0, -4395),
+                UpDirection = new Vector3D(0, -1, 0),
+                FieldOfView=10,
+                
+                
+              
 
+            };
+
+            viewPort.Camera = camera;
 
             Tuple<Point3D, Point3D, double> returnTuple = new Tuple<Point3D, Point3D, double>(returnPoint1, returnPoint2, shortestDistance);
 

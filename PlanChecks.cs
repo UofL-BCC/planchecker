@@ -34,7 +34,7 @@ namespace VMS.TPS
 
 
             window.Height = 1000;
-            window.Width = 1200;
+            window.Width = 1400;
             window.VerticalAlignment = VerticalAlignment.Top;
             window.HorizontalAlignment = HorizontalAlignment.Left;
 

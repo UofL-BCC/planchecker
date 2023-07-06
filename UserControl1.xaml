@@ -6,16 +6,16 @@
              xmlns:helix="http://helix-toolkit.org/wpf"
              xmlns:local="clr-namespace:PlanChecks"
              mc:Ignorable="d" 
-             d:DesignHeight="1000" d:DesignWidth="1200">
+             d:DesignHeight="1000" d:DesignWidth="1400">
     <UserControl.Background>
         <SolidColorBrush Color="#FF96A2B7"/>
     </UserControl.Background>
     <Grid>
 
-        <StackPanel Name="HorizontalStackPanel" Orientation="Horizontal" HorizontalAlignment="Center" Width="1000">
+        <StackPanel Name="HorizontalStackPanel" Orientation="Horizontal" HorizontalAlignment="Left" Width="1390">
 
 
-            <StackPanel Orientation="Vertical" Width="1000" >
+            <StackPanel Orientation="Vertical" >
 
 
                 <TextBox Text="Prescription Checks" BorderBrush="White" Height="40" VerticalAlignment="Top" 
@@ -73,11 +73,22 @@
 
                 </DataGrid>
 
-                <helix:HelixViewport3D Name="viewport" Height="400" Background="White"/>
 
 
 
             </StackPanel>
+
+            <StackPanel Orientation="Vertical"  >
+                <TextBox Text="Collision Model" BorderBrush="White" Height="40" 
+                     Background="#FF96A2B7" BorderThickness="0" HorizontalAlignment="Center" 
+                     FontSize="20" FontWeight="Bold" Width="163" />
+
+                <helix:HelixViewport3D Name="viewport" Height="300" HorizontalAlignment="Center"
+                                       ShowCameraInfo="False"   Background="White" Width="300"/>
+
+            </StackPanel>
+
+
         </StackPanel>
     </Grid>
 </UserControl>
