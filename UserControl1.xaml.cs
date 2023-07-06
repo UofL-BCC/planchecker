@@ -11,10 +11,12 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using VMS.TPS.Common.Model.API;
 using VMS.TPS.Common.Model.Types;
+using HelixToolkit.Wpf;
 
 namespace PlanChecks
 {
@@ -25,6 +27,8 @@ namespace PlanChecks
     {
         public List<Tuple<string, string, string, bool?>> OutputList = new List<Tuple<string, string, string, bool?>>();
         public List<Tuple<string, string, string, bool?>> OutputListRX = new List<Tuple<string, string, string, bool?>>();
+
+        public static HelixToolkit.Wpf.HelixViewport3D viewPort;
 
         public UserControl1(ScriptContext context, Window window1)
         {
@@ -52,6 +56,7 @@ namespace PlanChecks
             string techname = "";
             checktech(plan, out sametech, out techname);
 
+            
             double expectedRes = 0.00;
             double actualRes = 99.00;
             bool? ResResult = false;
@@ -268,7 +273,28 @@ namespace PlanChecks
             //image guidance 
             //};
             }
-          
+
+            try
+            {
+                //checkForStrayVoxels(plan);
+                //checkTargetInsideBody(plan);
+                //var targsWithMissingSlices = checkForMissingSlices(plan);
+
+                //MessageBox.Show(targsWithMissingSlices.First());
+
+                viewPort = viewport;
+                CollisionCheck(plan);
+
+
+
+            }
+            catch ( Exception e )
+            {
+                MessageBox.Show(e.Message);
+                throw;
+            }
+
+
             string jawtrackingexpected = "Off";
             if (techname == "VMAT" || techname == "SRS/SBRT" || techname == "IMRT")
             {
@@ -1186,6 +1212,448 @@ namespace PlanChecks
 
             return false;
         }
+
+
+        //takes a few mintes at the moment
+        //add cone for electron checks (about 3.5cm clearance)
+        public static void CollisionCheck(PlanSetup plan)
+        {
+            //38 cm from iso = nono
+            //B couch is inserted in plan
+            //A/F couches are not
+            //only create cylinder for arc lengths
+            //only create cylinder ~ 25cm north and south of iso (this is where machine head will be)
+            //reduce sampling rate on cylinder
+
+
+            var supportStructures = plan.StructureSet.Structures.Where(c => c.DicomType == "SUPPORT").ToList();
+            var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
+          
+
+
+            var basePlate =  plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("baseplate") || c.Id.ToLower().Contains("base plate")).FirstOrDefault();
+
+            //plan.Beams.First().TreatmentUnit.Name == "TrubeamB"
+
+
+            var bodyBounds = body.MeshGeometry.Bounds;
+
+            Point3DCollection bodyMeshPoints = body.MeshGeometry.Positions;
+
+            foreach (var point in bodyMeshPoints)
+            {
+                //do not print all the body points
+
+
+
+
+
+            }
+
+            if (basePlate == null && supportStructures.Any() == false )
+            {
+                //couch structures or baseplate are missing
+            }
+            else if (supportStructures.Any())
+            {
+                //add their mesh to the body mesh
+            }
+            else
+            {
+                //add the baseplate to the body mesh
+            }
+
+
+            var GantryCirclePoints = AddCylinderToMesh(plan);
+
+            var shortestDistance = ShortestDistance(bodyMeshPoints.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition);
+            //list of 2 points,  body and cylinder points that have the shortes distance between them
+            var resultingCoords = changeDICOMtoUserCoords(shortestDistance, plan);
+            //plan.StructureSet.Image.DicomToUser(new VVector(shortestDistance.Item2.X, shortestDistance.Item2.Y, shortestDistance.Item2.Z), plan);
+            MessageBox.Show(resultingCoords.First().x.ToString()+ " : " + resultingCoords.First().y.ToString() + " : " + resultingCoords.First().z.ToString() + " \n"
+                + resultingCoords.Last().x.ToString() + " : " + resultingCoords.Last().y.ToString() + " : " + resultingCoords.Last().z.ToString() + " \n" +
+                shortestDistance.Item3.ToString() + " cm");
+
+        }
+
+        //converts dicom coords to user coords in cm
+        public static List<VVector> changeDICOMtoUserCoords(Tuple<Point3D, Point3D, double> tuple, PlanSetup plan)
+        {
+            var usercorrds = plan.StructureSet.Image.DicomToUser(new VVector(tuple.Item1.X, tuple.Item1.Y, tuple.Item1.Z), plan);
+            var usercorrds1 = plan.StructureSet.Image.DicomToUser(new VVector(tuple.Item2.X, tuple.Item2.Y, tuple.Item2.Z), plan);
+
+
+            var usercoordscm = new VVector(usercorrds.x / 10, usercorrds.y / 10, usercorrds.z / 10);
+            var usercoordscm1 = new VVector(usercorrds1.x / 10, usercorrds1.y / 10, usercorrds1.z / 10);
+
+            return new List<VVector>() { usercoordscm, usercoordscm1 };
+
+        }
+
+
+        public static List<Point3D> AddCylinderToMesh(PlanSetup plan)
+        {
+
+            VVector isocenter = plan.Beams.First(c => c.IsSetupField == false).IsocenterPosition;
+            var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
+
+            MeshGeometry3D collimatorMesh = new MeshGeometry3D();
+
+            var isoSlice = FindIsoSlice(isocenter, body, plan);
+
+            var GantryCirclePoints = CreateGantryCircle(isocenter, 380, plan.StructureSet.Image, 10, plan);
+
+            return GantryCirclePoints;
+
+
+        }
+        public static double? FindIsoSlice(VVector isocenter, Structure body, PlanSetup plan)
+        {
+            var sliceThickness = plan.StructureSet.Image.ZRes;
+
+            List<VVector> contoursSorted = new List<VVector>();
+            List<VVector[][]> vVectors = new List<VVector[][]>();  
+            for (int i = 0; i < 20; i++)
+            {
+                var contours = body.MeshGeometry.Positions;
+                var contours1 = contours.Select(e => new VVector(e.X, e.Y, e.Z)).ToList();
+                contoursSorted = contours1.OrderBy(c => c.z).ToList();
+                
+            }
+
+            if (contoursSorted.Any())
+            {
+                double firstZVal = contoursSorted.First().z;
+                double numberOfSlices = Math.Abs(isocenter.z - firstZVal) / sliceThickness;
+
+                return numberOfSlices;
+
+            }
+            else 
+            { 
+                return null; 
+            }
+            
+
+
+
+        }
+
+        /// <summary>
+        /// creates a circle of points on the same slice as the Isocenter
+        /// </summary>
+        /// <param name="isocenter"> Isocenter Location</param>
+        /// <param name="circleRadius"> size of the circle</param>
+        /// <param name="image"> image so we can determine slice thickness</param>
+        /// <param name="thetaDegrees"> sampling rate f points along the perimeter of the circle in degrees</param>
+        /// <returns>The points on the circle</returns>
+        public static List<Point3D> CreateGantryCircle(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
+        {
+            List<Point3D> oneSlicePointList = new List<Point3D>();
+
+            
+            double thetaRadians = thetaDegrees *(Math.PI / 180);
+
+            for (double i = 0; i < ((Math.PI*2)/thetaRadians); i+= thetaRadians)
+            {
+                //72 iterations of 0.87 radians makes a full circle (every 5 degrees)
+                //i is theta
+                double x;
+                double y;
+
+                //in mm
+                x = circleRadius * Math.Cos(i);
+                y = circleRadius * Math.Sin(i);
+
+                Point3D circleCoord = new Point3D(isocenter.x + x, isocenter.y + y, isocenter.z);
+                oneSlicePointList.Add(circleCoord);
+
+            }
+
+            double sliceThickness = image.ZRes;
+            List<Point3D> AllPoints = new List<Point3D>();
+
+
+            
+            //extend the circle to a cylinder, only go ~25cm north and south
+            //iterate according to the slice thickness
+            for (int i = 1; i < Math.Round(350 / sliceThickness); i++)
+            {
+                foreach (var point in oneSlicePointList)
+                {
+                    double PosZ = point.Z + i * sliceThickness;
+                    double NegZ = point.Z - i * sliceThickness;
+
+                    Point3D PosPoint = new Point3D(point.X, point.Y, PosZ);
+                    Point3D NegPoint = new Point3D(point.X, point.Y, NegZ);
+
+                    AllPoints.Add(PosPoint);
+                    AllPoints.Add(NegPoint);
+
+                }
+
+            }
+           
+
+            return AllPoints;
+
+        }
+
+        //find the starting and stop gantry angles
+        //not finished yet
+        public static void GetArcSections(PlanSetup plan)
+        {
+            var beamList = plan.Beams.Where(c => c.IsSetupField == false).ToList();
+
+            foreach (var beam in beamList)
+            {
+
+                var FirstGantryAngle = beam.ControlPoints.First().GantryAngle;
+                var LastGantryAngle = beam.ControlPoints.First().GantryAngle;
+
+                if (FirstGantryAngle > 180)
+                {
+                    FirstGantryAngle = 360 - FirstGantryAngle;
+                }
+
+            }
+
+
+        }
+
+        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Point3D> cylinderMeshPositions, VVector isocenter)
+        {
+            Point3D returnPoint1 = new Point3D();
+            Point3D returnPoint2 = new Point3D();
+            double shortestDistance = 2000000;
+            int i = 0;
+
+            //only use body points which are in the neighborhood of the iso in the z direction
+            var zList = bodyMeshPositions.Select(c => c.Z).ToList();
+            zList.Sort();
+            var zMin = zList.First();
+            var zMax = zList.Last();
+            var nearbyBodyPositions = bodyMeshPositions.Where(x => x.Z <= zMax && x.Z >= zMin).ToList();
+
+            //group the cylinder positions together with cylinder positions? to prevent the farthest ones away to have to compare
+            var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Z).ToList();
+            var groupedNearbyBodyPositionsLists = nearbyBodyPositions.GroupBy(c => c.Z).ToList();
+
+
+            List<double> bodyZList = new List<double>(); 
+            foreach (var groupCylinder in groupedCylinderMeshLists)
+            {
+                foreach (var groupBody in groupedNearbyBodyPositionsLists)
+                {
+                    if (Math.Abs(groupCylinder.Key - groupBody.Key) <= 3  && (bodyZList.Contains(groupBody.Key)==false))
+                    {
+
+                        foreach (Point3D point1 in groupBody)
+                        {
+                            foreach (Point3D point2 in groupCylinder)
+                            {
+                                if (shortestDistance >= 2)
+                                {
+                                    i++;
+                                    double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
+                                        + (Math.Pow((point2.Z - point1.Z), 2)))) / 10;
+                                    if (distance < shortestDistance)
+                                    {
+                                        shortestDistance = distance;
+                                        returnPoint1 = point1;
+                                        returnPoint2 = point2;
+                                    }
+                                }
+                            }
+                        }
+
+
+
+
+
+
+
+
+
+                        bodyZList.Add(groupBody.Key);
+                    }
+
+                }
+
+            }
+
+            MessageBox.Show(i.ToString());
+
+
+            MessageBox.Show(nearbyBodyPositions.Count.ToString() + " body positions");
+            MessageBox.Show(cylinderMeshPositions.Count.ToString() + " cylinder positions");
+
+
+            //get every 10th point form the body mesh
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 3 == 0).ToList();
+            //add the points to a view for debugging
+            PointsVisual3D pointsVisual3D = new PointsVisual3D()
+            {
+                Color = Colors.Blue,
+                Size = 2,
+                Points = new Point3DCollection(every10thBody)
+            };
+
+            ModelVisual3D modelVisual3D = new ModelVisual3D();
+            modelVisual3D.Children.Add(pointsVisual3D);
+
+            //do the same for the cylinder mesh
+            PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
+            {
+                Color = Colors.Green,
+                Size = 2,
+                Points = new Point3DCollection(cylinderMeshPositions)
+            };
+
+            modelVisual3D.Children.Add(pointsVisual3Dcyl);
+            viewPort.Children.Add(modelVisual3D);
+
+
+
+
+            Tuple<Point3D, Point3D, double> returnTuple = new Tuple<Point3D, Point3D, double>(returnPoint1, returnPoint2, shortestDistance);
+
+            return returnTuple;
+        }
+
+
+
+
+        //check if targets have slices skipped contours
+        //may not work because individual nodal volumes
+        public static List<string> checkForMissingSlices(PlanSetup plan)
+        {
+            var planStructures = plan.StructureSet.Structures;
+            var targetStructures = plan.StructureSet.Structures.Where(c => c.DicomType.ToLower().Contains("ctv") ||
+            c.DicomType.ToLower().Contains("gtv")).ToList();
+
+
+            //List<Tuple<string, int>> targetsMissingSlices = new List<Tuple<string, int>>();
+            List<string> targetsMissingSlices = new List<string>();
+
+            if (targetStructures.Any())
+            {
+
+                foreach (var structure in targetStructures)
+                {
+                    int counter = 0;
+                    List<int> MissingSlices = new List<int>();
+
+
+
+                    if (structure.HasSegment == true)
+                    {
+                        for (int i = 0; i < 400; i += 1)
+                        {
+
+                            var vector = structure.GetContoursOnImagePlane(i);
+
+
+                            if (vector.Any() == true)
+                            {
+                                counter++;
+                            }
+                            else if (vector.Any() == false & counter != 0)
+                            {
+                                MissingSlices.Add(i);
+                                MessageBox.Show("in");
+
+                            }
+
+                        }
+
+                    }
+
+                    if (MissingSlices.Any())
+                    {
+                        //Tuple<string, int> tuple = new Tuple<string, int>(structure.Id, MissingSlices.First());
+                        //targetsMissingSlices.Add(tuple);
+
+                        targetsMissingSlices.Add(structure.Id);
+
+                    }
+
+
+
+
+                }
+
+                return targetsMissingSlices;
+
+            }
+            else
+            {
+                return null;
+            }
+
+            
+        }
+
+       
+
+
+        //check if target contours are inside body (volume type PTV/CTV/GTV?)
+        //not currently working yet
+        public static List<Structure> checkTargetInsideBody(PlanSetup plan)
+        {
+
+
+
+            var targetStructures = plan.StructureSet.Structures.Where(c=> c.DicomType.ToLower().Contains("ctv") ||
+            c.DicomType.ToLower().Contains("gtv") || c.DicomType.ToLower().Contains("ptv")).ToList();
+
+            MessageBox.Show(targetStructures.First().Id);
+
+            var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
+
+            MessageBox.Show(plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("external")).First().DicomType);
+
+            List<Structure> targetOutsideBody = new List<Structure>();
+
+
+            Structure brainStem = plan.StructureSet.Structures.FirstOrDefault(c => c.Id == "Brainstem");
+
+           
+
+
+
+            if (targetStructures.Any())
+            {
+                MessageBox.Show("in loop");
+                foreach (var target in targetStructures)
+                {
+
+                    //body.SegmentVolume = body.Or(target.SegmentVolume);
+
+
+                    MessageBox.Show(target.Id);
+                    //var subtraction = target.Sub(body);
+                    //var AndStruct = subtraction.And(body);
+
+                    var mesh = target.MeshGeometry;
+                    var targetBounds = mesh.Bounds;
+
+                    
+                    if (true)
+                    {
+                        targetOutsideBody.Add(target);
+                        MessageBox.Show(target.Id + " outside body");
+                    }
+                }
+
+
+            }
+
+            return targetOutsideBody;
+            
+
+        }
+
 
         //method for coloring rows
         private void ReportDataGrid_LoadingRow(object sender, DataGridRowEventArgs e)
