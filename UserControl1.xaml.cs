@@ -1238,9 +1238,6 @@ namespace PlanChecks
 
             var basePlate =  plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("baseplate") || c.Id.ToLower().Contains("base plate")).FirstOrDefault();
 
-
-            var bodyBounds = body.MeshGeometry.Bounds;
-
             Point3DCollection bodyMeshPoints = body.MeshGeometry.Positions;
 
             Point3DCollection BodyPlusCouch = new Point3DCollection();
@@ -1251,22 +1248,24 @@ namespace PlanChecks
             {
                 //couch structures or baseplate are missing
                 BodyPlusCouch = bodyMeshPoints;
-                MessageBox.Show("couch structures or baseplate missing");
+
             }
             else if (supportStructures.Any())
             {
-                //add their mesh to the body mesh
+
+                List<Point3D> couchMeshes = new List<Point3D>();
+                //add couch mesh to the body mesh
                 foreach (var couchStruct in supportStructures)
                 {
-                    if (couchStruct.Id.ToLower().Contains("couchsurface"))
+                    if (couchStruct.Id.ToLower().Contains("couchsurface") || couchStruct.Id.ToLower().Contains("rail"))
                     {
-                        var concattedLists = bodyMeshPoints.Concat(couchStruct.MeshGeometry.Positions);
-
-                        Point3DCollection point3Ds = new Point3DCollection(concattedLists);
-                        BodyPlusCouch = point3Ds;
-
+                        couchMeshes.AddRange(couchStruct.MeshGeometry.Positions);
                     }
                 }
+                var concattedLists = bodyMeshPoints.Concat(couchMeshes);
+                Point3DCollection point3Ds = new Point3DCollection(concattedLists);
+                BodyPlusCouch = point3Ds;
+
             }
             else
             {
@@ -1336,7 +1335,19 @@ namespace PlanChecks
             }
             else
             {
-                GantryCirclePoints = CreateStaticPlane(isocenter, plan.StructureSet.Image, plan); 
+                //loop through each static beam and make the gantry plane
+                List<double> gantryAngleList = new List<double>();
+                List<Point3D> pointList = new List<Point3D>();
+
+                foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
+                {
+                    if (gantryAngleList.Contains(beam.ControlPoints.FirstOrDefault().GantryAngle) == false)
+                    {
+                        pointList.AddRange(CreateStaticPlane(isocenter, plan.StructureSet.Image, beam));
+                        gantryAngleList.Add(beam.ControlPoints.FirstOrDefault().GantryAngle);
+                    }
+                }
+                GantryCirclePoints = pointList;
             }
 
             return GantryCirclePoints;
@@ -1571,17 +1582,17 @@ namespace PlanChecks
 
         }
 
-        public static List<Point3D> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, PlanSetup planSetup)
+        public static List<Point3D> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, Beam beam)
         {
             
             List<Point3D> AllPoints = new List<Point3D>();
             List<Point3D> AllPointsTranslated = new List<Point3D>();
 
 
-            var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
-            var gantryAngle = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.First().GantryAngle;
+            //var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
+            var gantryAngle = beam.ControlPoints.First().GantryAngle;
 
-            VVector sourceLocation = firstBeam.GetSourceLocation(gantryAngle);
+            VVector sourceLocation = beam.GetSourceLocation(gantryAngle);
             VVector sourceToIso = isocenter - sourceLocation;
 
             sourceToIso.ScaleToUnitLength();
@@ -1756,7 +1767,7 @@ namespace PlanChecks
 
             //get every nth point from the body mesh
             //saves time by not plotting every point
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 45 == 0).ToList();
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 40 == 0).ToList();
             List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 5 == 0).ToList();
             //add the points to a model
             PointsVisual3D pointsVisual3D = new PointsVisual3D()
