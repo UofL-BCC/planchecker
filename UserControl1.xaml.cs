@@ -29,18 +29,44 @@ namespace PlanChecks
         public List<Tuple<string, string, string, bool?>> OutputList = new List<Tuple<string, string, string, bool?>>();
         public List<Tuple<string, string, string, bool?>> OutputListRX = new List<Tuple<string, string, string, bool?>>();
 
+        ScriptContext context1;
+       
         public static HelixToolkit.Wpf.HelixViewport3D viewPort;
 
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
 
+            context1 = context;
+            viewPort = viewport;
+            ComboBox PlanComboBox = this.PlanComboBox;
+            FillPlanComboBox(context, PlanComboBox);
+            
+
+        }
+
+        public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
+            List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
+            DataGrid ReportDataGrid_Rx)
+        {
             //code behind goes here
+            UserControl userControl = new UserControl();
+
+            OutputList.Clear();
+            OutputListRX.Clear();
+            
+
 
             Patient mypatient = context.Patient;
             Course course = context.Course;
 
-            PlanSetup plan = context.PlanSetup;
+            
+            //get plan from ui comboBox
+            PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
+            //PlanSetup plan = context.PlanSetup;
+
+
+
             PlanningItem ps1 = null;
             ps1 = (PlanningItem)plan;
             var image = plan.StructureSet.Image;
@@ -57,7 +83,7 @@ namespace PlanChecks
             string techname = "";
             checktech(plan, out sametech, out techname);
 
-            
+
             double expectedRes = 0.00;
             double actualRes = 99.00;
             bool? ResResult = false;
@@ -66,8 +92,8 @@ namespace PlanChecks
 
             if (plan.Dose != null)
             {
-                actualRes = (plan.Dose.XRes / 10);                
-                if(expectedRes == actualRes)
+                actualRes = (plan.Dose.XRes / 10);
+                if (expectedRes == actualRes)
                 {
                     ResResult = true;
                 }
@@ -85,7 +111,7 @@ namespace PlanChecks
             string temp = getPlanMode(plan);
             string algoexpected = "UNKNOWN";
             string algoused = "UNKNOWN";
-            bool algomatch = false; 
+            bool algomatch = false;
 
             if (temp == "PHOTON")
             {
@@ -123,7 +149,7 @@ namespace PlanChecks
             string volname = "";
             maxDoseInPTV(plan, out samemax, out globaldosemax, out volname);
 
-            
+
 
             string toleranceTables = "";
             tolTablesUsed(plan, out toleranceTables);
@@ -207,7 +233,7 @@ namespace PlanChecks
                 //checkplantech(plan, out techname, out techpass);
                 checkplantechmatchesRX(plan, ref techname, out techpass);
 
-               
+
 
                 List<string> replaceStringList = new List<string>();
 
@@ -269,17 +295,16 @@ namespace PlanChecks
 
 
                 //to add:
-            //treatment site AND laterality
-            //Time interval (BID)
-            //image guidance 
-            //};
+                //treatment site AND laterality
+                //Time interval (BID)
+                //image guidance 
+                //};
             }
 
             double? shortestDistance;
             try
             {
                 //make the viewport using helix3Dtoolkit for the collision model
-                viewPort = viewport;
                 //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
                 //return the shortest distance
                 shortestDistance = CollisionCheck(plan);
@@ -287,7 +312,7 @@ namespace PlanChecks
 
 
             }
-            catch ( Exception e )
+            catch (Exception e)
             {
                 MessageBox.Show("Collision check encountered an error.\n" + e.Message);
                 shortestDistance = null;
@@ -396,15 +421,16 @@ namespace PlanChecks
 
         };
 
-            if (machname== "TrueBeamNE")
+            if (machname == "TrueBeamNE")
             {
                 var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
-                if(beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC"){
-                    
-                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE","NO SRS AT NE", false));
+                if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
+                {
+
+                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
                 }
             }
-        
+
             OutputList.Reverse();
             OutputListRX.Reverse();
 
@@ -416,8 +442,8 @@ namespace PlanChecks
 
 
             //code for databinding the list of plan check items to the data grid
-            this.ReportDataGrid.ItemsSource = OutputList;
-            this.ReportDataGrid_Rx.ItemsSource = OutputListRX;
+            ReportDataGrid.ItemsSource = OutputList;
+            ReportDataGrid_Rx.ItemsSource = OutputListRX;
 
             ReportDataGrid.HeadersVisibility = DataGridHeadersVisibility.Column;
             ReportDataGrid_Rx.HeadersVisibility = DataGridHeadersVisibility.Column;
@@ -427,8 +453,8 @@ namespace PlanChecks
             ReportDataGrid_Rx.AutoGenerateColumns = true;
 
 
-            this.ReportDataGrid.Items.Refresh();
-            this.ReportDataGrid_Rx.Items.Refresh();
+            ReportDataGrid.Items.Refresh();
+            ReportDataGrid_Rx.Items.Refresh();
 
 
 
@@ -437,8 +463,6 @@ namespace PlanChecks
 
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
-
-
         }
 
 
@@ -1768,7 +1792,7 @@ namespace PlanChecks
             //get every nth point from the body mesh
             //saves time by not plotting every point
             List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 40 == 0).ToList();
-            List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 5 == 0).ToList();
+            List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 2 == 0).ToList();
             //add the points to a model
             PointsVisual3D pointsVisual3D = new PointsVisual3D()
             {
@@ -1790,6 +1814,7 @@ namespace PlanChecks
             };
 
             modelVisual3D.Children.Add(pointsVisual3Dcyl);
+            viewPort.Children.Clear();
             viewPort.Children.Add(modelVisual3D);
 
 
@@ -2029,14 +2054,25 @@ namespace PlanChecks
 
         }
 
-        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
         {
+            List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
+
+            foreach (var plan in scopePlans)
+            {
+                
+                comboBox.Items.Add(plan.Id);
+            }
+
+            scopePlans.Reverse();
+
 
         }
 
-        private void TextBox_TextChanged_1(object sender, TextChangedEventArgs e)
+        private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-
+            
+            Main(context1, PlanComboBox, viewPort, OutputList, OutputListRX, HorizontalStackPanel, ReportDataGrid, ReportDataGrid_Rx);
         }
     }
 }
