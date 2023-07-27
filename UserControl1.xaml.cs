@@ -1579,12 +1579,24 @@ namespace PlanChecks
             //cm
             int coneSize = int.Parse(firstBeam.Applicator.Id.Substring(1));
 
+            //make dictionary of additional margin that needs to be added to cone size
+            //these are the physical measurements of the cone
+            Dictionary<double, double> ApplicatorMarginDict = new Dictionary<double, double>();
+            ApplicatorMarginDict.Add(6, 15);
+            ApplicatorMarginDict.Add(10, 18.8);
+            ApplicatorMarginDict.Add(15, 23.7);
+            ApplicatorMarginDict.Add(20, 28.5);
+            ApplicatorMarginDict.Add(25, 33.7);
+
+
+            //the additional margin value in cm
+            double MarginValue = ApplicatorMarginDict.FirstOrDefault(c => c.Key == coneSize).Value;
 
             //Create x-z plane of points
-            //add 5cm on both ends of actual cutout size to account for thickness of the cone
-            for (double x = - coneSize*10 -50; x <=  coneSize*10 + 50; x += 10)
+            //add margin value on both sides to account for actual applicator size
+            for (double x = - (MarginValue*10)/2; x <= (MarginValue * 10) / 2; x += 10)
             {
-                for (double z = -coneSize * 10 -50; z <= coneSize * 10 + 50; z += 10)
+                for (double z = -(MarginValue * 10) / 2; z <= (MarginValue * 10) / 2; z += 10)
                 {
                     Vector3 point = new Vector3((float)x, 0, (float)z);
                     Vector3 rotatedVector = Vector3.Transform(point, rotMatrix);
@@ -1632,12 +1644,12 @@ namespace PlanChecks
 
             Matrix4x4 rotMatrix = Matrix4x4.CreateFromAxisAngle(new Vector3(0, 0, 1), (float)(gantryAngle * (Math.PI / 180)));
 
-            //cm
-            int coneSize = 190;
+            //mm
+            double coneSize = 387.5;
 
 
             //Create x-z plane of points
-            //add 5cm on both ends of actual cutout size to account for thickness of the cone
+       
             for (double x = -coneSize ; x <= coneSize; x += 10)
             {
                 for (double z = -coneSize; z <= coneSize; z += 10)
@@ -1762,7 +1774,7 @@ namespace PlanChecks
                         {
                             foreach (Point3D point2 in groupCylinder)
                             {
-                                if (shortestDistance >= 2)
+                                if (shortestDistance >= 0.3)
                                 {
                                     i++;
                                     double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
@@ -1791,7 +1803,7 @@ namespace PlanChecks
 
             //get every nth point from the body mesh
             //saves time by not plotting every point
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 40 == 0).ToList();
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).ToList();
             List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 2 == 0).ToList();
             //add the points to a model
             PointsVisual3D pointsVisual3D = new PointsVisual3D()
@@ -1821,10 +1833,11 @@ namespace PlanChecks
             //set the default camera view
             PerspectiveCamera camera = new PerspectiveCamera()
             {
-                Position = new Point3D(42, 87, 5000),
-                LookDirection = new Vector3D(0, 0, -4395),
-                UpDirection = new Vector3D(0, -1, 0),
+                Position = new Point3D(2.9, -2148, -3758),
+                LookDirection = new Vector3D(0,2296,3747),
+                UpDirection = new Vector3D(0, -0.853, 0),
                 FieldOfView = 10,
+                
 
 
             };
@@ -1832,6 +1845,7 @@ namespace PlanChecks
             //change the zoom sensitivity
             viewPort.ZoomSensitivity = 0.5;
 
+            //viewPort.ShowCameraInfo = true;
 
             viewPort.Camera = camera;
 
@@ -2064,7 +2078,13 @@ namespace PlanChecks
                 comboBox.Items.Add(plan.Id);
             }
 
-            scopePlans.Reverse();
+            foreach (var item in comboBox.Items)
+            {
+                if ((string)item == scriptContext.PlanSetup.Id)
+                {
+                    comboBox.SelectedItem = item;
+                }
+            }
 
 
         }
