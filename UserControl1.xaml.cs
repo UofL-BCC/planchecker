@@ -54,8 +54,8 @@ namespace PlanChecks
 
             OutputList.Clear();
             OutputListRX.Clear();
-            
 
+            
 
             Patient mypatient = context.Patient;
             Course course = context.Course;
@@ -233,6 +233,7 @@ namespace PlanChecks
                 //checkplantech(plan, out techname, out techpass);
                 checkplantechmatchesRX(plan, ref techname, out techpass);
 
+                
 
 
                 List<string> replaceStringList = new List<string>();
@@ -301,6 +302,10 @@ namespace PlanChecks
                 //};
             }
 
+
+          
+
+
             double? shortestDistance;
             try
             {
@@ -361,6 +366,9 @@ namespace PlanChecks
             checkRapidplan(plan, out rpused, out rpavail);
 
             string checkWedgeMU = checkEDWmin(plan);
+
+
+            
 
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
@@ -463,6 +471,9 @@ namespace PlanChecks
 
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
+
+          
+
         }
 
 
@@ -2074,7 +2085,7 @@ namespace PlanChecks
            
             foreach (var plan in scopePlans)
             {
-                if (plan.PlanIntent.ToLower() == "curative")
+                if (plan.PlanIntent.ToLower() != "verification")
                 {
                     comboBox.Items.Add(plan.Id);
                 }
