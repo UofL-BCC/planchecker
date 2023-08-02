@@ -2071,11 +2071,14 @@ namespace PlanChecks
         private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
         {
             List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
-
+           
             foreach (var plan in scopePlans)
             {
-                
-                comboBox.Items.Add(plan.Id);
+                if (plan.PlanIntent.ToLower() == "curative")
+                {
+                    comboBox.Items.Add(plan.Id);
+                }
+         
             }
 
             foreach (var item in comboBox.Items)
