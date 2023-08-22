@@ -18,10 +18,7 @@
 
             <StackPanel Orientation="Vertical" >
 
-                <TextBox Background="#FF96A2B7" Text="Selected Plan" FontSize="20" 
-                         FontWeight="Bold" HorizontalAlignment="Center" Height="40" VerticalAlignment="Center"/>
-                <ComboBox Name="PlanComboBox" SelectedIndex="0" SelectionChanged="PlanComboBox_SelectionChanged" 
-                          Height="30" HorizontalContentAlignment="Center" FontSize="15" FontWeight="Bold"/>
+                
 
 
                 <TextBox Text="Prescription Checks" BorderBrush="White" Height="60" VerticalAlignment="Top" 

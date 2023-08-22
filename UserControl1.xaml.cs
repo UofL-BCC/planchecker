@@ -37,23 +37,23 @@ namespace PlanChecks
         {
             InitializeComponent();
 
-            context1 = context;
+            //context1 = context;
             viewPort = viewport;
-            ComboBox PlanComboBox = this.PlanComboBox;
-            FillPlanComboBox(context, PlanComboBox);
+            //ComboBox PlanComboBox = this.PlanComboBox;
+           // FillPlanComboBox(context, PlanComboBox);
             
 
-        }
+        //}
 
-        public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
-            List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
-            DataGrid ReportDataGrid_Rx)
-        {
+        //public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
+        //    List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
+        //    DataGrid ReportDataGrid_Rx)
+        //{
             //code behind goes here
-            UserControl userControl = new UserControl();
+            //UserControl userControl = new UserControl();
 
-            OutputList.Clear();
-            OutputListRX.Clear();
+            //OutputList.Clear();
+            //OutputListRX.Clear();
 
             
 
@@ -62,8 +62,8 @@ namespace PlanChecks
 
             
             //get plan from ui comboBox
-            PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
-            //PlanSetup plan = context.PlanSetup;
+           // PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
+            PlanSetup plan = context.PlanSetup;
 
 
 
@@ -87,6 +87,7 @@ namespace PlanChecks
             double expectedRes = 0.00;
             double actualRes = 99.00;
             bool? ResResult = false;
+            bool noDose = false;
 
             expectedRes = techname.StartsWith("SRS") ? 0.125 : 0.250;
 
@@ -101,6 +102,11 @@ namespace PlanChecks
                 {
                     ResResult = null;
                 }
+            }
+            else
+            {
+                noDose = true;
+                ResResult = null;
             }
 
 
@@ -147,7 +153,7 @@ namespace PlanChecks
             bool samemax = false;
             double globaldosemax = 0.00;
             string volname = "";
-            maxDoseInPTV(plan, out samemax, out globaldosemax, out volname);
+            if (!noDose) { maxDoseInPTV(plan, out samemax, out globaldosemax, out volname); }
 
 
 
@@ -333,9 +339,12 @@ namespace PlanChecks
 
             string isJawTrackingOn = (plan.OptimizationSetup.Parameters.Any(x => x is OptimizationJawTrackingUsedParameter)) ? "Enabled" : "Off";
 
-            double totalMUdoub = totalMU(plan);
+            double totalMUdoub = 0;
+            if (!noDose) { totalMUdoub= totalMU(plan);}
 
-            double maxBeamMU = maxMU(plan);
+
+            double maxBeamMU = 0;
+            if (!noDose) { maxBeamMU = maxMU(plan); }
 
             string diff = (plan.CreationDateTime.Value.Date - plan.StructureSet.Image.CreationDateTime.Value.Date).ToString();
             int CTdiffdays = 0;
@@ -352,7 +361,13 @@ namespace PlanChecks
             }
             double artifactChecked = checkArtifact(plan);
 
-            string fullcoverage = checkDoseCoverage(plan);
+            string fullcoverage = "No Dose";
+
+            if (!noDose) {
+                //MessageBox.Show("HERE");
+                fullcoverage = checkDoseCoverage(plan);
+                }
+
 
             string needflash = "Flash not used";
 
@@ -365,10 +380,12 @@ namespace PlanChecks
             string rpavail = "No";
             checkRapidplan(plan, out rpused, out rpavail);
 
-            string checkWedgeMU = checkEDWmin(plan);
+
+            string checkWedgeMU = "No Dose";
+            if (!noDose) { checkWedgeMU = checkEDWmin(plan); }
 
 
-            
+
 
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
@@ -450,8 +467,8 @@ namespace PlanChecks
 
 
             //code for databinding the list of plan check items to the data grid
-            ReportDataGrid.ItemsSource = OutputList;
-            ReportDataGrid_Rx.ItemsSource = OutputListRX;
+            this.ReportDataGrid.ItemsSource = OutputList;
+            this.ReportDataGrid_Rx.ItemsSource = OutputListRX;
 
             ReportDataGrid.HeadersVisibility = DataGridHeadersVisibility.Column;
             ReportDataGrid_Rx.HeadersVisibility = DataGridHeadersVisibility.Column;
@@ -461,8 +478,8 @@ namespace PlanChecks
             ReportDataGrid_Rx.AutoGenerateColumns = true;
 
 
-            ReportDataGrid.Items.Refresh();
-            ReportDataGrid_Rx.Items.Refresh();
+            this.ReportDataGrid.Items.Refresh();
+            this.ReportDataGrid_Rx.Items.Refresh();
 
 
 
@@ -2079,34 +2096,34 @@ namespace PlanChecks
 
         }
 
-        private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
-        {
-            List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
+        //private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
+        //{
+        //    List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
            
-            foreach (var plan in scopePlans)
-            {
-                if (plan.PlanIntent.ToLower() != "verification")
-                {
-                    comboBox.Items.Add(plan.Id);
-                }
+        //    foreach (var plan in scopePlans)
+        //    {
+        //        if (plan.PlanIntent.ToLower() != "verification")
+        //        {
+        //            comboBox.Items.Add(plan.Id);
+        //        }
          
-            }
+        //    }
 
-            foreach (var item in comboBox.Items)
-            {
-                if ((string)item == scriptContext.PlanSetup.Id)
-                {
-                    comboBox.SelectedItem = item;
-                }
-            }
+        //    foreach (var item in comboBox.Items)
+        //    {
+        //        if ((string)item == scriptContext.PlanSetup.Id)
+        //        {
+        //            comboBox.SelectedItem = item;
+        //        }
+        //    }
 
 
-        }
+        //}
 
-        private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
+        //private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        //{
             
-            Main(context1, PlanComboBox, viewPort, OutputList, OutputListRX, HorizontalStackPanel, ReportDataGrid, ReportDataGrid_Rx);
-        }
+        //    Main(context1, PlanComboBox, viewPort, OutputList, OutputListRX, HorizontalStackPanel, ReportDataGrid, ReportDataGrid_Rx);
+        //}
     }
 }
