@@ -17,6 +17,7 @@ using System.Windows.Shapes;
 using VMS.TPS.Common.Model.API;
 using VMS.TPS.Common.Model.Types;
 using HelixToolkit.Wpf;
+using System.Numerics;
 
 namespace PlanChecks
 {
@@ -28,18 +29,44 @@ namespace PlanChecks
         public List<Tuple<string, string, string, bool?>> OutputList = new List<Tuple<string, string, string, bool?>>();
         public List<Tuple<string, string, string, bool?>> OutputListRX = new List<Tuple<string, string, string, bool?>>();
 
+        ScriptContext context1;
+       
         public static HelixToolkit.Wpf.HelixViewport3D viewPort;
 
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
 
+            context1 = context;
+            viewPort = viewport;
+            ComboBox PlanComboBox = this.PlanComboBox;
+            FillPlanComboBox(context, PlanComboBox);
+            
+
+        }
+
+        public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
+            List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
+            DataGrid ReportDataGrid_Rx)
+        {
             //code behind goes here
+            UserControl userControl = new UserControl();
+
+            OutputList.Clear();
+            OutputListRX.Clear();
+
+            
 
             Patient mypatient = context.Patient;
             Course course = context.Course;
 
-            PlanSetup plan = context.PlanSetup;
+            
+            //get plan from ui comboBox
+            PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
+            //PlanSetup plan = context.PlanSetup;
+
+
+
             PlanningItem ps1 = null;
             ps1 = (PlanningItem)plan;
             var image = plan.StructureSet.Image;
@@ -56,7 +83,7 @@ namespace PlanChecks
             string techname = "";
             checktech(plan, out sametech, out techname);
 
-            
+
             double expectedRes = 0.00;
             double actualRes = 99.00;
             bool? ResResult = false;
@@ -65,8 +92,8 @@ namespace PlanChecks
 
             if (plan.Dose != null)
             {
-                actualRes = (plan.Dose.XRes / 10);                
-                if(expectedRes == actualRes)
+                actualRes = (plan.Dose.XRes / 10);
+                if (expectedRes == actualRes)
                 {
                     ResResult = true;
                 }
@@ -84,7 +111,7 @@ namespace PlanChecks
             string temp = getPlanMode(plan);
             string algoexpected = "UNKNOWN";
             string algoused = "UNKNOWN";
-            bool algomatch = false; 
+            bool algomatch = false;
 
             if (temp == "PHOTON")
             {
@@ -122,7 +149,7 @@ namespace PlanChecks
             string volname = "";
             maxDoseInPTV(plan, out samemax, out globaldosemax, out volname);
 
-            
+
 
             string toleranceTables = "";
             tolTablesUsed(plan, out toleranceTables);
@@ -206,7 +233,8 @@ namespace PlanChecks
                 //checkplantech(plan, out techname, out techpass);
                 checkplantechmatchesRX(plan, ref techname, out techpass);
 
-               
+                
+
 
                 List<string> replaceStringList = new List<string>();
 
@@ -268,29 +296,31 @@ namespace PlanChecks
 
 
                 //to add:
-            //treatment site AND laterality
-            //Time interval (BID)
-            //image guidance 
-            //};
+                //treatment site AND laterality
+                //Time interval (BID)
+                //image guidance 
+                //};
             }
 
+
+          
+
+
+            double? shortestDistance;
             try
             {
-                //checkForStrayVoxels(plan);
-                //checkTargetInsideBody(plan);
-                //var targsWithMissingSlices = checkForMissingSlices(plan);
-
-                //MessageBox.Show(targsWithMissingSlices.First());
-
-                viewPort = viewport;
-                CollisionCheck(plan);
+                //make the viewport using helix3Dtoolkit for the collision model
+                //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
+                //return the shortest distance
+                shortestDistance = CollisionCheck(plan);
 
 
 
             }
-            catch ( Exception e )
+            catch (Exception e)
             {
-                MessageBox.Show(e.Message);
+                MessageBox.Show("Collision check encountered an error.\n" + e.Message);
+                shortestDistance = null;
                 throw;
             }
 
@@ -338,6 +368,9 @@ namespace PlanChecks
             string checkWedgeMU = checkEDWmin(plan);
 
 
+            
+
+
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
 
@@ -373,6 +406,9 @@ namespace PlanChecks
                 //new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
+                /*in the following line, there is a compact if else statement within a compact if else statement     */
+                new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm",(shortestDistance != null) ? Math.Round((double)shortestDistance, 2).ToString()+
+                " cm" : null , (shortestDistance >= 2) ? ((shortestDistance>4)? true:(bool?)null) : false)
 
 
             
@@ -393,15 +429,16 @@ namespace PlanChecks
 
         };
 
-            if (machname== "TrueBeamNE")
+            if (machname == "TrueBeamNE")
             {
                 var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
-                if(beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC"){
-                    
-                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE","NO SRS AT NE", false));
+                if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
+                {
+
+                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
                 }
             }
-        
+
             OutputList.Reverse();
             OutputListRX.Reverse();
 
@@ -413,8 +450,8 @@ namespace PlanChecks
 
 
             //code for databinding the list of plan check items to the data grid
-            this.ReportDataGrid.ItemsSource = OutputList;
-            this.ReportDataGrid_Rx.ItemsSource = OutputListRX;
+            ReportDataGrid.ItemsSource = OutputList;
+            ReportDataGrid_Rx.ItemsSource = OutputListRX;
 
             ReportDataGrid.HeadersVisibility = DataGridHeadersVisibility.Column;
             ReportDataGrid_Rx.HeadersVisibility = DataGridHeadersVisibility.Column;
@@ -424,8 +461,8 @@ namespace PlanChecks
             ReportDataGrid_Rx.AutoGenerateColumns = true;
 
 
-            this.ReportDataGrid.Items.Refresh();
-            this.ReportDataGrid_Rx.Items.Refresh();
+            ReportDataGrid.Items.Refresh();
+            ReportDataGrid_Rx.Items.Refresh();
 
 
 
@@ -435,6 +472,7 @@ namespace PlanChecks
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
 
+          
 
         }
 
@@ -1218,14 +1256,14 @@ namespace PlanChecks
 
         
         //add cone for electron checks (about 3.5cm clearance)
-        public static void CollisionCheck(PlanSetup plan)
+        //check full circle and only arclength collision? Seperate checks?
+        public static double CollisionCheck(PlanSetup plan)
         {
             //38 cm from iso = nono
             //couches are inserted in plan as support structures
             //If theres no couch it's prob a H/N with the baseplate included in the exteral
-            //only create cylinder for arc lengths
-            //only create cylinder ~ 25cm north and south of iso (this is where machine head will be)
-            //reduce sampling rate on cylinder
+            //need a solution for static photon beams
+            
 
 
             var supportStructures = plan.StructureSet.Structures.Where(c => c.DicomType == "SUPPORT").ToList();
@@ -1235,54 +1273,54 @@ namespace PlanChecks
 
             var basePlate =  plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("baseplate") || c.Id.ToLower().Contains("base plate")).FirstOrDefault();
 
-            //plan.Beams.First().TreatmentUnit.Name == "TrubeamB"
-
-
-            var bodyBounds = body.MeshGeometry.Bounds;
-
             Point3DCollection bodyMeshPoints = body.MeshGeometry.Positions;
 
             Point3DCollection BodyPlusCouch = new Point3DCollection();
 
 
-            //insert couches/baseplate
+            //check if couches/baseplate are present
             if (basePlate == null && supportStructures.Any() == false )
             {
                 //couch structures or baseplate are missing
                 BodyPlusCouch = bodyMeshPoints;
-                MessageBox.Show("couch structures or baseplate missing");
+
             }
             else if (supportStructures.Any())
             {
-                //add their mesh to the body mesh
+
+                List<Point3D> couchMeshes = new List<Point3D>();
+                //add couch mesh to the body mesh
                 foreach (var couchStruct in supportStructures)
                 {
-                    if (couchStruct.Id.ToLower().Contains("couchsurface"))
+                    if (couchStruct.Id.ToLower().Contains("couchsurface") || couchStruct.Id.ToLower().Contains("rail"))
                     {
-                        var concattedLists = bodyMeshPoints.Concat(couchStruct.MeshGeometry.Positions);
-
-                        Point3DCollection point3Ds = new Point3DCollection(concattedLists);
-                        BodyPlusCouch = point3Ds;
-
+                        couchMeshes.AddRange(couchStruct.MeshGeometry.Positions);
                     }
                 }
+                var concattedLists = bodyMeshPoints.Concat(couchMeshes);
+                Point3DCollection point3Ds = new Point3DCollection(concattedLists);
+                BodyPlusCouch = point3Ds;
+
             }
             else
             {
+                //if you cant find support structures just use the body
                 BodyPlusCouch = bodyMeshPoints;
             }
-          
-            
+
 
             var GantryCirclePoints = AddCylinderToMesh(plan);
 
             var shortestDistance = ShortestDistance(BodyPlusCouch.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition);
             //list of 2 points,  body and cylinder points that have the shortes distance between them
             var resultingCoords = changeDICOMtoUserCoords(shortestDistance, plan);
-            //plan.StructureSet.Image.DicomToUser(new VVector(shortestDistance.Item2.X, shortestDistance.Item2.Y, shortestDistance.Item2.Z), plan);
-            MessageBox.Show(resultingCoords.First().x.ToString()+ " : " + resultingCoords.First().y.ToString() + " : " + resultingCoords.First().z.ToString() + " \n"
-                + resultingCoords.Last().x.ToString() + " : " + resultingCoords.Last().y.ToString() + " : " + resultingCoords.Last().z.ToString() + " \n" +
-                shortestDistance.Item3.ToString() + " cm");
+            //show results if necessary for debugging
+            //MessageBox.Show(resultingCoords.First().x.ToString()+ " : " + resultingCoords.First().y.ToString() + " : " + resultingCoords.First().z.ToString() + " \n"
+            //    + resultingCoords.Last().x.ToString() + " : " + resultingCoords.Last().y.ToString() + " : " + resultingCoords.Last().z.ToString() + " \n" +
+            //    shortestDistance.Item3.ToString() + " cm");
+
+
+            return shortestDistance.Item3;
 
         }
 
@@ -1300,6 +1338,15 @@ namespace PlanChecks
 
         }
 
+        public static Point3D changeUserToDICOMCoords(Point3D point, PlanSetup plan)
+        {
+            var usercorrds = plan.StructureSet.Image.DicomToUser(new VVector(point.X, point.Y, point.Z), plan);
+            var usercoords1 = new Point3D(usercorrds.x, usercorrds.y, usercorrds.z);
+
+            return usercoords1;
+
+        }
+
 
         public static List<Point3D> AddCylinderToMesh(PlanSetup plan)
         {
@@ -1307,18 +1354,49 @@ namespace PlanChecks
             VVector isocenter = plan.Beams.First(c => c.IsSetupField == false).IsocenterPosition;
             var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
 
-            MeshGeometry3D collimatorMesh = new MeshGeometry3D();
-
-            var isoSlice = FindIsoSlice(isocenter, body, plan);
 
 
-            //add if statement for electron (radius will be smaller)
-            var GantryCirclePoints = CreateGantryCircle(isocenter, 380, plan.StructureSet.Image, 10, plan);
+            List<Point3D> GantryCirclePoints;
+
+            //make e elctron cone, or gantry arc, or gantry plane
+            if (plan.Beams.FirstOrDefault(c => c.IsSetupField == false).EnergyModeDisplayName.ToLower().Contains("e"))
+            {
+                GantryCirclePoints = CreateConePlane(isocenter, plan.StructureSet.Image, plan);
+            }
+            else if(plan.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.First().GantryAngle !=
+                plan.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.Last().GantryAngle)
+            {
+                GantryCirclePoints = CreateGantryArc(isocenter, 380, plan.StructureSet.Image, 10, plan);
+            }
+            else
+            {
+                //loop through each static beam and make the gantry plane
+                List<double> gantryAngleList = new List<double>();
+                List<Point3D> pointList = new List<Point3D>();
+
+                foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
+                {
+                    if (gantryAngleList.Contains(beam.ControlPoints.FirstOrDefault().GantryAngle) == false)
+                    {
+                        pointList.AddRange(CreateStaticPlane(isocenter, plan.StructureSet.Image, beam));
+                        gantryAngleList.Add(beam.ControlPoints.FirstOrDefault().GantryAngle);
+                    }
+                }
+                GantryCirclePoints = pointList;
+            }
 
             return GantryCirclePoints;
 
 
         }
+
+        /// <summary>
+        /// Finds the slice number that your plan isocenter is on
+        /// </summary>
+        /// <param name="isocenter"></param>
+        /// <param name="body"></param>
+        /// <param name="plan"></param>
+        /// <returns>Slice number from the most inferior slice that has the isocenter on it</returns>
         public static double? FindIsoSlice(VVector isocenter, Structure body, PlanSetup plan)
         {
             var sliceThickness = plan.StructureSet.Image.ZRes;
@@ -1359,14 +1437,14 @@ namespace PlanChecks
         /// <param name="image"> image so we can determine slice thickness</param>
         /// <param name="thetaDegrees"> sampling rate f points along the perimeter of the circle in degrees</param>
         /// <returns>The points on the circle</returns>
-        public static List<Point3D> CreateGantryCircle(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
+        public static List<Point3D> CreateGantryArc(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
         {
             List<Point3D> oneSlicePointList = new List<Point3D>();
 
-            
-            double thetaRadians = thetaDegrees *(Math.PI / 180);
+            //radians along the circle where we will put points
+            double smaplingRate = thetaDegrees *(Math.PI / 180);
 
-            for (double i = 0; i < ((Math.PI*2)/thetaRadians); i+= thetaRadians)
+            for (double i = 0; i < ((Math.PI*2)/ smaplingRate); i+= smaplingRate)
             {
                 //72 iterations of 0.87 radians makes a full circle (every 5 degrees)
                 //i is theta
@@ -1375,19 +1453,80 @@ namespace PlanChecks
 
                 //in mm
                 x = circleRadius * Math.Cos(i);
-                y = circleRadius * Math.Sin(i);
+                //y direction is reversed in eclipse
+                y = -circleRadius * Math.Sin(i);
 
                 Point3D circleCoord = new Point3D(isocenter.x + x, isocenter.y + y, isocenter.z);
-                oneSlicePointList.Add(circleCoord);
+
+
+                //check if the current angle on the circle falls in one of the arc sectors
+                foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
+                {
+                    var arcsectors = GetArcSectors(beam);
+
+                    //MessageBox.Show("arcsector1 " + arcsectors.Item1 + " arcsector2 " + arcsectors.Item2);
+
+
+                    if (arcsectors.Item3 == GantryDirection.CounterClockwise)
+                    {
+                        if (arcsectors.Item1> arcsectors.Item2)
+                        {
+                            //passing through 0 polar
+
+                            if (i>= arcsectors.Item1 && i<= 359*(Math.PI/180))
+                            {
+                                oneSlicePointList.Add(circleCoord);
+                            }
+                            else if (i>=0 && i<= arcsectors.Item2)
+                            {
+                                oneSlicePointList.Add(circleCoord);
+                            }
+                        }
+                        else
+                        {
+
+                            if (i  >= arcsectors.Item1 && i <= arcsectors.Item2)
+                            {
+                                oneSlicePointList.Add(circleCoord);
+
+                            }
+                        }
+
+                    }
+                    else
+                    {
+                        if (arcsectors.Item1 < arcsectors.Item2 && (arcsectors.Item2 >= 270*(Math.PI/180)))
+                        {
+
+                            //passing through 0 polar
+                            if (i >= 0 &&  i <=arcsectors.Item1)
+                            {
+                                oneSlicePointList.Add(circleCoord);
+
+                            }
+                            else if (i<= 359 * (Math.PI/180) && i>= arcsectors.Item2)
+                            {
+                                oneSlicePointList.Add(circleCoord);
+
+                            }
+                        }
+                        else
+                        {
+
+                            if (i <= arcsectors.Item1 && i >= arcsectors.Item2)
+                            {
+
+                                oneSlicePointList.Add(circleCoord);
+                            }
+                        }
+                    }
+                }
+
 
             }
 
             double sliceThickness = image.ZRes;
             List<Point3D> AllPoints = new List<Point3D>();
-
-
-            //and iff statement for the z direction if plan is electrons
-
 
 
             //extend the circle to a cylinder, only go ~30cm north and south
@@ -1414,28 +1553,192 @@ namespace PlanChecks
 
         }
 
-        //find the starting and stop gantry angles
-        //not finished yet
-        public static void GetArcSections(PlanSetup plan)
+
+        public static List<Point3D> CreateConePlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, PlanSetup planSetup)
         {
-            var beamList = plan.Beams.Where(c => c.IsSetupField == false).ToList();
+            //find the iso position
+            //find the SSD? (electron plans are fixed SSD setups)
+            //find the direction of the beam (source position to isocenter position)
+            //make a plane perpendicular to the beam ~3.5cm upstream from the isocenter
+            //the 3.5cm is the clearance from iso to the bottom of the cone
+            //the size of the plane will correspond to the size of the e cone
 
-            foreach (var beam in beamList)
+
+            List<Point3D> AllPoints = new List<Point3D>();
+            List<Point3D> AllPointsTranslated = new List<Point3D>();
+
+
+            var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
+            var gantryAngle = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.First().GantryAngle;
+
+            VVector sourceLocation = firstBeam.GetSourceLocation(gantryAngle);
+            VVector sourceToIso = isocenter - sourceLocation;
+
+            sourceToIso.ScaleToUnitLength();
+
+            //bottom of cone is ~ 3.5cm back from the iso
+            var bottomOfCone = isocenter - sourceToIso * 35;
+
+            //define a plane using a normal vector
+            //the normal being the source to iso vector(direction of the beam )
+            Plane perpendicularPlane = new Plane(new Vector3((float)sourceToIso.x, (float)sourceToIso.y, (float)sourceToIso.z), 0);
+
+
+
+            Matrix4x4 rotMatrix = Matrix4x4.CreateFromAxisAngle(new Vector3(0, 0, 1), (float)(gantryAngle * (Math.PI / 180)));
+
+            //cm
+            int coneSize = int.Parse(firstBeam.Applicator.Id.Substring(1));
+
+            //make dictionary of additional margin that needs to be added to cone size
+            //these are the physical measurements of the cone
+            Dictionary<double, double> ApplicatorMarginDict = new Dictionary<double, double>();
+            ApplicatorMarginDict.Add(6, 15);
+            ApplicatorMarginDict.Add(10, 18.8);
+            ApplicatorMarginDict.Add(15, 23.7);
+            ApplicatorMarginDict.Add(20, 28.5);
+            ApplicatorMarginDict.Add(25, 33.7);
+
+
+            //the additional margin value in cm
+            double MarginValue = ApplicatorMarginDict.FirstOrDefault(c => c.Key == coneSize).Value;
+
+            //Create x-z plane of points
+            //add margin value on both sides to account for actual applicator size
+            for (double x = - (MarginValue*10)/2; x <= (MarginValue * 10) / 2; x += 10)
             {
-
-                var FirstGantryAngle = beam.ControlPoints.First().GantryAngle;
-                var LastGantryAngle = beam.ControlPoints.First().GantryAngle;
-
-                if (FirstGantryAngle > 180)
+                for (double z = -(MarginValue * 10) / 2; z <= (MarginValue * 10) / 2; z += 10)
                 {
-                    FirstGantryAngle = 360 - FirstGantryAngle;
-                }
+                    Vector3 point = new Vector3((float)x, 0, (float)z);
+                    Vector3 rotatedVector = Vector3.Transform(point, rotMatrix);
+                    
 
+                    VVector point3D = new VVector(rotatedVector.X, rotatedVector.Y, rotatedVector.Z);
+                    VVector addedPoint = bottomOfCone + point3D;
+                    Point3D finalPoint = new Point3D(addedPoint.x, addedPoint.y, addedPoint.z);
+
+                    //newPointList.Add(finalPoint);
+                    AllPointsTranslated.Add(finalPoint);
+
+                }
             }
+
+
+            return AllPointsTranslated;
 
 
         }
 
+        public static List<Point3D> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, Beam beam)
+        {
+            
+            List<Point3D> AllPoints = new List<Point3D>();
+            List<Point3D> AllPointsTranslated = new List<Point3D>();
+
+
+            //var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
+            var gantryAngle = beam.ControlPoints.First().GantryAngle;
+
+            VVector sourceLocation = beam.GetSourceLocation(gantryAngle);
+            VVector sourceToIso = isocenter - sourceLocation;
+
+            sourceToIso.ScaleToUnitLength();
+
+            //bottom of cone is ~ 3.5cm back from the iso
+            var gantryPlane = isocenter - sourceToIso * 380;
+
+            //define a plane using a normal vector
+            //the normal being the source to iso vector(direction of the beam )
+            Plane perpendicularPlane = new Plane(new Vector3((float)sourceToIso.x, (float)sourceToIso.y, (float)sourceToIso.z), 0);
+
+
+
+            Matrix4x4 rotMatrix = Matrix4x4.CreateFromAxisAngle(new Vector3(0, 0, 1), (float)(gantryAngle * (Math.PI / 180)));
+
+            //mm
+            double coneSize = 387.5;
+
+
+            //Create x-z plane of points
+       
+            for (double x = -coneSize ; x <= coneSize; x += 10)
+            {
+                for (double z = -coneSize; z <= coneSize; z += 10)
+                {
+                    Vector3 point = new Vector3((float)x, 0, (float)z);
+                    Vector3 rotatedVector = Vector3.Transform(point, rotMatrix);
+
+
+                    VVector point3D = new VVector(rotatedVector.X, rotatedVector.Y, rotatedVector.Z);
+                    VVector addedPoint = gantryPlane + point3D;
+                    Point3D finalPoint = new Point3D(addedPoint.x, addedPoint.y, addedPoint.z);
+
+                    //newPointList.Add(finalPoint);
+                    AllPointsTranslated.Add(finalPoint);
+
+                }
+            }
+
+
+            return AllPointsTranslated;
+
+
+        }
+
+        //find the starting and stop gantry angles
+        //not finished yet
+        /// <summary>
+        /// Finds the start and end point of the arc in polar coords in radians
+        /// </summary>
+        /// <param name="beam"></param>
+        /// <returns>a tuple containing the arc start, end, and gantry direction</returns>
+        public static Tuple<double, double, GantryDirection> GetArcSectors(Beam beam)
+        {
+            
+            var FirstGantryAngle = beam.ControlPoints.First().GantryAngle;
+            var LastGantryAngle = beam.ControlPoints.Last().GantryAngle;
+
+
+            var polarFirst1 = ConvertGantryAngleToPolar(FirstGantryAngle);
+            var polarLast1 = ConvertGantryAngleToPolar(LastGantryAngle);
+
+            var polarFirst = polarFirst1 * (Math.PI / 180);
+            var polarLast = polarLast1 * (Math.PI / 180);
+
+            Tuple<double, double, GantryDirection> tuple = new Tuple<double, double, GantryDirection>(polarFirst, polarLast, beam.GantryDirection);
+
+
+            return tuple;
+        }
+
+        /// <summary>
+        /// converts varian IEC gantry angles in degrees to polar angles in degrees
+        /// </summary>
+        /// <param name="gantryAngle"></param>
+        /// <returns>the polar angle in degrees</returns>
+        public static double ConvertGantryAngleToPolar(double gantryAngle)
+        {
+            double polarAngle;
+            if (gantryAngle <=90)
+            {
+
+                polarAngle = Math.Abs(90 - gantryAngle);
+            }
+            else
+            {
+                polarAngle = 450 - gantryAngle;
+            }
+
+            return polarAngle;
+        }
+
+        /// <summary>
+        /// Checks distance between points on the body and points on the mesh.
+        /// </summary>
+        /// <param name="bodyMeshPositions"></param>
+        /// <param name="cylinderMeshPositions"></param>
+        /// <param name="isocenter"></param>
+        /// <returns>The first point under 2cm distance or the shortest distance it finds after comparing all the points.</returns>
         public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Point3D> cylinderMeshPositions, VVector isocenter)
         {
             Point3D returnPoint1 = new Point3D();
@@ -1448,13 +1751,28 @@ namespace PlanChecks
             zList.Sort();
             var zMin = zList.First();
             var zMax = zList.Last();
-            var nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
+
+            List<Point3D> nearbyBodyPositions = new List<Point3D>();
+
+
+            //find the neaby body points that you want to measure distance from the mesh
+            //use some extra body points if you are comparing e cone (easier to see body this way)
+            if (Math.Abs(zMax-zMin) <= 300)
+            {
+                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax + 100 && c.Z >= zMin - 100).ToList();
+            }
+            else
+            {
+                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
+            }
+
 
             //group the cylinder positions together with cylinder positions? to prevent the farthest ones away to have to compare
             var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Z).ToList();
             var groupedNearbyBodyPositionsLists = nearbyBodyPositions.GroupBy(c => c.Z).ToList();
 
-
+            //compare the body and mesh points in groups to save time
+            //Should prevent redundant distance checks
             List<double> bodyZList = new List<double>(); 
             foreach (var groupCylinder in groupedCylinderMeshLists)
             {
@@ -1467,7 +1785,7 @@ namespace PlanChecks
                         {
                             foreach (Point3D point2 in groupCylinder)
                             {
-                                if (shortestDistance >= 2)
+                                if (shortestDistance >= 0.3)
                                 {
                                     i++;
                                     double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
@@ -1480,15 +1798,9 @@ namespace PlanChecks
                                         returnPoint2 = point2;
                                     }
                                 }
+                                
                             }
                         }
-
-
-
-
-
-
-
 
 
                         bodyZList.Add(groupBody.Key);
@@ -1498,17 +1810,13 @@ namespace PlanChecks
 
             }
 
-            //messages to show number of points found
-            //MessageBox.Show(i.ToString());
 
 
-            //MessageBox.Show(nearbyBodyPositions.Count.ToString() + " body positions");
-            //MessageBox.Show(cylinderMeshPositions.Count.ToString() + " cylinder positions");
-
-
-            //get every 10th point form the body mesh
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 30 == 0).ToList();
-            //add the points to a view for debugging
+            //get every nth point from the body mesh
+            //saves time by not plotting every point
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).ToList();
+            List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 2 == 0).ToList();
+            //add the points to a model
             PointsVisual3D pointsVisual3D = new PointsVisual3D()
             {
                 Color = Colors.Blue,
@@ -1519,30 +1827,36 @@ namespace PlanChecks
             ModelVisual3D modelVisual3D = new ModelVisual3D();
             modelVisual3D.Children.Add(pointsVisual3D);
 
+
             //do the same for the cylinder mesh
             PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
             {
                 Color = Colors.Green,
                 Size = 2,
-                Points = new Point3DCollection(cylinderMeshPositions)
+                Points = new Point3DCollection(every10thMesh)
             };
 
             modelVisual3D.Children.Add(pointsVisual3Dcyl);
+            viewPort.Children.Clear();
             viewPort.Children.Add(modelVisual3D);
 
-            
 
+            //set the default camera view
             PerspectiveCamera camera = new PerspectiveCamera()
             {
-                Position = new Point3D(42, 87, 5000),
-                LookDirection = new Vector3D(0, 0, -4395),
-                UpDirection = new Vector3D(0, -1, 0),
-                FieldOfView=10,
+                Position = new Point3D(2.9, -2148, -3758),
+                LookDirection = new Vector3D(0,2296,3747),
+                UpDirection = new Vector3D(0, -0.853, 0),
+                FieldOfView = 10,
                 
-                
-              
+
 
             };
+
+            //change the zoom sensitivity
+            viewPort.ZoomSensitivity = 0.5;
+
+            //viewPort.ShowCameraInfo = true;
 
             viewPort.Camera = camera;
 
@@ -1556,6 +1870,7 @@ namespace PlanChecks
 
         //check if targets have slices skipped contours
         //may not work because individual nodal volumes
+        //not currently working
         public static List<string> checkForMissingSlices(PlanSetup plan)
         {
             var planStructures = plan.StructureSet.Structures;
@@ -1764,14 +2079,34 @@ namespace PlanChecks
 
         }
 
-        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
         {
+            List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
+           
+            foreach (var plan in scopePlans)
+            {
+                if (plan.PlanIntent.ToLower() != "verification")
+                {
+                    comboBox.Items.Add(plan.Id);
+                }
+         
+            }
+
+            foreach (var item in comboBox.Items)
+            {
+                if ((string)item == scriptContext.PlanSetup.Id)
+                {
+                    comboBox.SelectedItem = item;
+                }
+            }
+
 
         }
 
-        private void TextBox_TextChanged_1(object sender, TextChangedEventArgs e)
+        private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-
+            
+            Main(context1, PlanComboBox, viewPort, OutputList, OutputListRX, HorizontalStackPanel, ReportDataGrid, ReportDataGrid_Rx);
         }
     }
 }

@@ -14,13 +14,19 @@
 
         <StackPanel Name="HorizontalStackPanel" Orientation="Horizontal" HorizontalAlignment="Left" Width="1390">
 
+            
 
             <StackPanel Orientation="Vertical" >
 
+                <TextBox Background="#FF96A2B7" Text="Selected Plan" FontSize="20" 
+                         FontWeight="Bold" HorizontalAlignment="Center" Height="40" VerticalAlignment="Center"/>
+                <ComboBox Name="PlanComboBox" SelectedIndex="0" SelectionChanged="PlanComboBox_SelectionChanged" 
+                          Height="30" HorizontalContentAlignment="Center" FontSize="15" FontWeight="Bold"/>
 
-                <TextBox Text="Prescription Checks" BorderBrush="White" Height="40" VerticalAlignment="Top" 
+
+                <TextBox Text="Prescription Checks" BorderBrush="White" Height="60" VerticalAlignment="Top" 
                 Background="#FF96A2B7" BorderThickness="0" HorizontalAlignment="Center" 
-                FontSize="20" FontWeight="Bold" Width="200" TextChanged="TextBox_TextChanged"/>
+                FontSize="20" FontWeight="Bold" Width="200" />
 
 
                 <DataGrid x:Name="ReportDataGrid_Rx"   LoadingRow="ReportDataGridRx_LoadingRow"
@@ -47,7 +53,7 @@
 
 
 
-                <TextBox Text="Plan Checks" BorderBrush="White" Height="40" VerticalAlignment="Center" 
+                <TextBox Text="Plan Checks" BorderBrush="White" Height="60" VerticalAlignment="Center" 
                      Background="#FF96A2B7" BorderThickness="0" HorizontalAlignment="Center" 
                      FontSize="20" FontWeight="Bold" Width="128" />
 
@@ -85,6 +91,9 @@
 
                 <helix:HelixViewport3D Name="viewport" Height="300" HorizontalAlignment="Center"
                                        ShowCameraInfo="False"   Background="White" Width="300"/>
+                <TextBox Text="Right Click = Rotate " Background="#FF96A2B7"/>
+                <TextBox Text="Middle Mouse = Drag " Background="#FF96A2B7" />
+                <TextBox Text="Middle Mouse Wheel = Zoom" Background="#FF96A2B7" />
 
             </StackPanel>
 
