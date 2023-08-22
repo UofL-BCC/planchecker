@@ -1328,7 +1328,7 @@ namespace PlanChecks
 
             var GantryCirclePoints = AddCylinderToMesh(plan);
 
-            var shortestDistance = ShortestDistance(BodyPlusCouch.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition);
+            var shortestDistance = ShortestDistance(BodyPlusCouch.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition, plan);
             //list of 2 points,  body and cylinder points that have the shortes distance between them
             var resultingCoords = changeDICOMtoUserCoords(shortestDistance, plan);
             //show results if necessary for debugging
@@ -1469,9 +1469,35 @@ namespace PlanChecks
                 double y;
 
                 //in mm
-                x = circleRadius * Math.Cos(i);
-                //y direction is reversed in eclipse
-                y = -circleRadius * Math.Sin(i);
+                if (plan.TreatmentOrientation == PatientOrientation.HeadFirstProne )
+                {
+                    y = circleRadius * Math.Sin(i);
+                 
+                    x = -circleRadius * Math.Cos(i);
+
+
+                }
+                if (plan.TreatmentOrientation == PatientOrientation.FeetFirstSupine)
+                {
+                    y = -circleRadius * Math.Sin(i);
+
+                    x = -circleRadius * Math.Cos(i);
+                }
+                if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
+                {
+                    y = circleRadius * Math.Sin(i);
+
+                    x = circleRadius * Math.Cos(i);
+                }
+                else
+                {
+                    //normal head first supine orientation (y is negative)
+                    y = -circleRadius * Math.Sin(i);
+
+                    x = circleRadius * Math.Cos(i);
+                }
+
+
 
                 Point3D circleCoord = new Point3D(isocenter.x + x, isocenter.y + y, isocenter.z);
 
@@ -1756,7 +1782,7 @@ namespace PlanChecks
         /// <param name="cylinderMeshPositions"></param>
         /// <param name="isocenter"></param>
         /// <returns>The first point under 2cm distance or the shortest distance it finds after comparing all the points.</returns>
-        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Point3D> cylinderMeshPositions, VVector isocenter)
+        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Point3D> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
         {
             Point3D returnPoint1 = new Point3D();
             Point3D returnPoint2 = new Point3D();
@@ -1857,6 +1883,35 @@ namespace PlanChecks
             viewPort.Children.Clear();
             viewPort.Children.Add(modelVisual3D);
 
+
+            //orient the visual model correctly depending on patient position
+
+            Vector3D UpDirection;
+            if (plan.TreatmentOrientation == PatientOrientation.HeadFirstProne)
+            {
+                y = circleRadius * Math.Sin(i);
+
+                x = -circleRadius * Math.Cos(i);
+
+
+            }
+            if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
+            {
+                y = circleRadius * Math.Sin(i);
+
+                x = circleRadius * Math.Cos(i);
+            }
+            else
+            {
+                //normal head first supine orientation (y is negative)
+                y = -circleRadius * Math.Sin(i);
+
+                x = circleRadius * Math.Cos(i);
+            }
+
+
+
+            
 
             //set the default camera view
             PerspectiveCamera camera = new PerspectiveCamera()
