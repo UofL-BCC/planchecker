@@ -1477,13 +1477,13 @@ namespace PlanChecks
 
 
                 }
-                if (plan.TreatmentOrientation == PatientOrientation.FeetFirstSupine)
+                else if (plan.TreatmentOrientation == PatientOrientation.FeetFirstSupine)
                 {
                     y = -circleRadius * Math.Sin(i);
 
                     x = -circleRadius * Math.Cos(i);
                 }
-                if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
+                else if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
                 {
                     y = circleRadius * Math.Sin(i);
 
@@ -1870,6 +1870,10 @@ namespace PlanChecks
             ModelVisual3D modelVisual3D = new ModelVisual3D();
             modelVisual3D.Children.Add(pointsVisual3D);
 
+            
+
+
+
 
             //do the same for the cylinder mesh
             PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
@@ -1884,29 +1888,60 @@ namespace PlanChecks
             viewPort.Children.Add(modelVisual3D);
 
 
-            //orient the visual model correctly depending on patient position
+            //orient the visual model correctly depending on treatment orientation
+            //orient view cube correctly depending on treatment orientation
+            viewPort.ViewCubeFrontText = "L";
+            viewPort.ViewCubeBackText = "R";
+            viewPort.ViewCubeBottomText = "I";
+            viewPort.ViewCubeTopText = "S";
+            viewPort.ViewCubeLeftText = "P";
+            viewPort.ViewCubeRightText = "A";
 
-            Vector3D UpDirection;
+            Vector3D Updirection;
+            Vector3D Lookdirection;
+            Point3D position;
+
             if (plan.TreatmentOrientation == PatientOrientation.HeadFirstProne)
             {
-                y = circleRadius * Math.Sin(i);
+                Updirection = new Vector3D(0, 0.853, 0);
+                position = new Point3D(2.9, -2148, -3758);
+                Lookdirection = new Vector3D(0, 2296, 3747);
 
-                x = -circleRadius * Math.Cos(i);
+                viewPort.ViewCubeLeftText = "P";
+                viewPort.ViewCubeRightText = "A";
 
 
             }
-            if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
+            else if (plan.TreatmentOrientation == PatientOrientation.FeetFirstSupine)
             {
-                y = circleRadius * Math.Sin(i);
+                Updirection = new Vector3D(0, -0.853, 0);
+                Lookdirection = new Vector3D(-17, -988, -4281);
+                position = new Point3D(-37, 1237, 4243);
 
-                x = circleRadius * Math.Cos(i);
+                viewPort.ViewCubeFrontText = "L";
+                viewPort.ViewCubeBackText = "R";
+
+
+            }
+            else if (plan.TreatmentOrientation == PatientOrientation.FeetFirstProne)
+            {
+                Updirection = new Vector3D(0, 0.853, 0);
+                Lookdirection = new Vector3D(-17, -988, -4281);
+                position = new Point3D(-37, 1237, 4243);
+
+                viewPort.ViewCubeFrontText = "L";
+                viewPort.ViewCubeBackText = "R";
+                viewPort.ViewCubeLeftText = "P";
+                viewPort.ViewCubeRightText = "A";
+
+
             }
             else
             {
                 //normal head first supine orientation (y is negative)
-                y = -circleRadius * Math.Sin(i);
-
-                x = circleRadius * Math.Cos(i);
+                Updirection = new Vector3D(0, -0.853, 0);
+                position = new Point3D(2.9, -2148, -3758);
+                Lookdirection = new Vector3D(0, 2296, 3747);
             }
 
 
@@ -1916,10 +1951,11 @@ namespace PlanChecks
             //set the default camera view
             PerspectiveCamera camera = new PerspectiveCamera()
             {
-                Position = new Point3D(2.9, -2148, -3758),
-                LookDirection = new Vector3D(0,2296,3747),
-                UpDirection = new Vector3D(0, -0.853, 0),
+                Position = position,
+                LookDirection = Lookdirection,
+                UpDirection = Updirection,
                 FieldOfView = 10,
+                
                 
 
 
@@ -1931,6 +1967,7 @@ namespace PlanChecks
             //viewPort.ShowCameraInfo = true;
 
             viewPort.Camera = camera;
+            
 
             Tuple<Point3D, Point3D, double> returnTuple = new Tuple<Point3D, Point3D, double>(returnPoint1, returnPoint2, shortestDistance);
 

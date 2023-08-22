@@ -87,7 +87,7 @@
                      FontSize="20" FontWeight="Bold" Width="163" />
 
                 <helix:HelixViewport3D Name="viewport" Height="300" HorizontalAlignment="Center"
-                                       ShowCameraInfo="False"   Background="White" Width="300"/>
+                                       ShowCameraInfo="True"   Background="White" Width="300"/>
                 <TextBox Text="Right Click = Rotate " Background="#FF96A2B7"/>
                 <TextBox Text="Middle Mouse = Drag " Background="#FF96A2B7" />
                 <TextBox Text="Middle Mouse Wheel = Zoom" Background="#FF96A2B7" />
