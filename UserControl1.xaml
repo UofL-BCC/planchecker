@@ -91,6 +91,24 @@
                 <TextBox Text="Right Click = Rotate " Background="#FF96A2B7"/>
                 <TextBox Text="Middle Mouse = Drag " Background="#FF96A2B7" />
                 <TextBox Text="Middle Mouse Wheel = Zoom" Background="#FF96A2B7" />
+                <ItemsControl Name="CheckBoxContainer" >
+                  
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical">
+                                
+                            </StackPanel>
+                        </ItemsPanelTemplate>
+                        
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding}" FontWeight="Bold"  />
+
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    
+                </ItemsControl>
 
             </StackPanel>
 

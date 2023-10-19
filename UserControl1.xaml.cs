@@ -18,6 +18,7 @@ using VMS.TPS.Common.Model.API;
 using VMS.TPS.Common.Model.Types;
 using HelixToolkit.Wpf;
 using System.Numerics;
+using MIConvexHull;
 
 namespace PlanChecks
 {
@@ -30,15 +31,25 @@ namespace PlanChecks
         public List<Tuple<string, string, string, bool?>> OutputListRX = new List<Tuple<string, string, string, bool?>>();
 
         ScriptContext context1;
-       
-        public static HelixToolkit.Wpf.HelixViewport3D viewPort;
+
+        public static ItemsControl checkBoxContainerGlobal;
+
+        public static HelixToolkit.Wpf.HelixViewport3D viewPortGlobal;
+
+        public static List<Tuple<Point3D, string>> arcMeshGlobal;
+
+        public static ModelVisual3D globalModelVisual3D;
+
+        public static List<Point3D> bodyMeshGlobal;
+
+        public static int plotCounter = 0;
 
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
 
             //context1 = context;
-            viewPort = viewport;
+            viewPortGlobal = viewport;
             //ComboBox PlanComboBox = this.PlanComboBox;
            // FillPlanComboBox(context, PlanComboBox);
             
@@ -55,7 +66,7 @@ namespace PlanChecks
             //OutputList.Clear();
             //OutputListRX.Clear();
 
-            
+            context1 = context;
 
             Patient mypatient = context.Patient;
             Course course = context.Course;
@@ -309,7 +320,28 @@ namespace PlanChecks
             }
 
 
-          
+
+            
+
+            //add CheckBoxes to your ItemsControl, name them according to the plan beams, check them
+            //this will be the user control to plot or not plot arcs in the collision model
+            foreach (var beam in plan.Beams)
+            {
+
+                if (beam.IsSetupField == false)
+                {
+                    CheckBox newCheckBox = new CheckBox();
+                    newCheckBox.IsChecked = true;
+                    newCheckBox.Content = beam.Id;
+                    CheckBoxContainer.Items.Add(newCheckBox);
+
+                    newCheckBox.Checked += NewCheckBox_Checked;
+                    newCheckBox.Unchecked += NewCheckBox_Checked;
+                }
+            }
+
+            //set the global variable to the UserControl ItemsControl so you can access it outside this scope
+            checkBoxContainerGlobal = this.CheckBoxContainer;
 
 
             double? shortestDistance;
@@ -384,7 +416,9 @@ namespace PlanChecks
             string checkWedgeMU = "No Dose";
             if (!noDose) { checkWedgeMU = checkEDWmin(plan); }
 
-
+            //get Vertex beams and check for sketch gantry angles
+            string vertexBeams = VertexBeamsToString(plan);
+            string sketchVertexBeams = CheckVertexBeam(plan);
 
 
 
@@ -423,6 +457,7 @@ namespace PlanChecks
                 //new Tuple<string, string, string, bool?>("RapidPlan Used", rpavail, rpused, (rpavail == rpused) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
+                new Tuple<string, string, string, bool?>("Vertex Beams", (vertexBeams == "")? "no vertex beams": vertexBeams , (sketchVertexBeams == "")? "" : "check for clearence \n" + sketchVertexBeams, (sketchVertexBeams == "")? true: false),
                 /*in the following line, there is a compact if else statement within a compact if else statement     */
                 new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm",(shortestDistance != null) ? Math.Round((double)shortestDistance, 2).ToString()+
                 " cm" : null , (shortestDistance >= 2) ? ((shortestDistance>4)? true:(bool?)null) : false)
@@ -489,10 +524,78 @@ namespace PlanChecks
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
 
+            
+
           
 
         }
+        public static string VertexBeamsToString(PlanSetup plan)
+        {
+            string BeamString = "";
 
+            try
+            {
+                List<string> vertexBeamList = plan.Beams.Where(c => (c.ControlPoints.First().PatientSupportAngle == 90)
+            || (c.ControlPoints.First().PatientSupportAngle == 270)).Select(c => c.Id).ToList();
+
+                
+                foreach (var beamId in vertexBeamList)
+                {
+                    BeamString += beamId + " \n";
+                }
+            }
+            catch (Exception)
+            {
+                BeamString = "";
+                
+            }
+            
+            return BeamString;
+        }
+        /// <summary>
+        /// Checks the gantry angle stop and finish position for couch kick 90 and 270. If they are > 5 degrees off towards the body inferior direction it throws a warning
+        /// with the name of the beam
+        /// </summary>
+        /// <param name="planSetup"></param>
+        public static string CheckVertexBeam(PlanSetup planSetup)
+        {
+            List<string> sketchBeamList = new List<string>();
+            foreach (var beam in planSetup.Beams.Where(c=> c.IsSetupField == false).ToList())
+            {
+                //90 is 270 in Eclipse
+                if (beam.ControlPoints.First().PatientSupportAngle == 270)
+                {
+
+                    if ((beam.ControlPoints.First().GantryAngle > 185 && beam.ControlPoints.First().GantryAngle < 355) == true || 
+                        (beam.ControlPoints.Last().GantryAngle > 185 && beam.ControlPoints.Last().GantryAngle < 355) == true)
+                    {
+                        sketchBeamList.Add(beam.Id);
+                    }
+                    
+                }
+                //270 is 90 in Eclipse
+                else if (beam.ControlPoints.First().PatientSupportAngle == 90)
+                {
+
+                    if ((beam.ControlPoints.First().GantryAngle > 5 & beam.ControlPoints.First().GantryAngle < 175) || 
+                        (beam.ControlPoints.Last().GantryAngle > 5 & beam.ControlPoints.Last().GantryAngle < 175))
+                    {
+                        sketchBeamList.Add(beam.Id);
+                    }
+                    
+                }
+            }
+
+            string sketchBeams = "";
+            foreach (var thing in sketchBeamList)
+            {
+                sketchBeams += thing + " \n";
+            }
+
+            return sketchBeams;
+        }
+
+        
 
         public static void checkRapidplan(PlanSetup plan, out string rpused, out string rpavail)
         {
@@ -1273,15 +1376,13 @@ namespace PlanChecks
 
         
         //add cone for electron checks (about 3.5cm clearance)
-        //check full circle and only arclength collision? Seperate checks?
         public static double CollisionCheck(PlanSetup plan)
         {
             //38 cm from iso = nono
             //couches are inserted in plan as support structures
             //If theres no couch it's prob a H/N with the baseplate included in the exteral
-            //need a solution for static photon beams
+ 
             
-
 
             var supportStructures = plan.StructureSet.Structures.Where(c => c.DicomType == "SUPPORT").ToList();
             var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
@@ -1365,7 +1466,7 @@ namespace PlanChecks
         }
 
 
-        public static List<Point3D> AddCylinderToMesh(PlanSetup plan)
+        public static List<Tuple<Point3D, string>> AddCylinderToMesh(PlanSetup plan)
         {
 
             VVector isocenter = plan.Beams.First(c => c.IsSetupField == false).IsocenterPosition;
@@ -1373,7 +1474,7 @@ namespace PlanChecks
 
 
 
-            List<Point3D> GantryCirclePoints;
+            List<Tuple<Point3D, string>> GantryCirclePoints;
 
             //make e elctron cone, or gantry arc, or gantry plane
             if (plan.Beams.FirstOrDefault(c => c.IsSetupField == false).EnergyModeDisplayName.ToLower().Contains("e"))
@@ -1387,15 +1488,17 @@ namespace PlanChecks
             }
             else
             {
-                //loop through each static beam and make the gantry plane
+                //loop through each static beam and make the gantry //plane// now using a circle to model gantry head
                 List<double> gantryAngleList = new List<double>();
-                List<Point3D> pointList = new List<Point3D>();
+                List<Tuple<Point3D, string>> pointList = new List<Tuple<Point3D, string>>();
 
                 foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
                 {
                     if (gantryAngleList.Contains(beam.ControlPoints.FirstOrDefault().GantryAngle) == false)
                     {
-                        pointList.AddRange(CreateStaticPlane(isocenter, plan.StructureSet.Image, beam));
+                        pointList.AddRange(MakeGantryCapCircle(plan, isocenter));
+
+                        //pointList.AddRange(CreateStaticPlane(isocenter, plan.StructureSet.Image, beam));
                         gantryAngleList.Add(beam.ControlPoints.FirstOrDefault().GantryAngle);
                     }
                 }
@@ -1454,9 +1557,9 @@ namespace PlanChecks
         /// <param name="image"> image so we can determine slice thickness</param>
         /// <param name="thetaDegrees"> sampling rate f points along the perimeter of the circle in degrees</param>
         /// <returns>The points on the circle</returns>
-        public static List<Point3D> CreateGantryArc(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
+        public static List<Tuple<Point3D, string>> CreateGantryArc(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
         {
-            List<Point3D> oneSlicePointList = new List<Point3D>();
+            List<Tuple<Point3D, double?, string >> oneSlicePointList = new List<Tuple<Point3D, double?, string>>();
 
             //radians along the circle where we will put points
             double smaplingRate = thetaDegrees *(Math.PI / 180);
@@ -1507,6 +1610,10 @@ namespace PlanChecks
                 {
                     var arcsectors = GetArcSectors(beam);
 
+                    double? couchKick = beam.ControlPoints.First().PatientSupportAngle;
+
+                    Tuple<Point3D, double?, string> circleTup = new Tuple<Point3D, double?, string>(circleCoord, couchKick, beam.Id); 
+
                     //MessageBox.Show("arcsector1 " + arcsectors.Item1 + " arcsector2 " + arcsectors.Item2);
 
 
@@ -1518,11 +1625,11 @@ namespace PlanChecks
 
                             if (i>= arcsectors.Item1 && i<= 359*(Math.PI/180))
                             {
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
                             }
                             else if (i>=0 && i<= arcsectors.Item2)
                             {
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
                             }
                         }
                         else
@@ -1530,7 +1637,7 @@ namespace PlanChecks
 
                             if (i  >= arcsectors.Item1 && i <= arcsectors.Item2)
                             {
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
 
                             }
                         }
@@ -1544,12 +1651,12 @@ namespace PlanChecks
                             //passing through 0 polar
                             if (i >= 0 &&  i <=arcsectors.Item1)
                             {
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
 
                             }
                             else if (i<= 359 * (Math.PI/180) && i>= arcsectors.Item2)
                             {
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
 
                             }
                         }
@@ -1559,45 +1666,220 @@ namespace PlanChecks
                             if (i <= arcsectors.Item1 && i >= arcsectors.Item2)
                             {
 
-                                oneSlicePointList.Add(circleCoord);
+                                oneSlicePointList.Add(circleTup);
                             }
                         }
                     }
                 }
 
 
+
             }
 
+
+
+
+
             double sliceThickness = image.ZRes;
-            List<Point3D> AllPoints = new List<Point3D>();
+            List<Tuple<Point3D, string>> AllPoints = new List<Tuple<Point3D, string>>();
 
 
-            //extend the circle to a cylinder, only go ~30cm north and south
-            //iterate according to the slice thickness
-            for (int i = 1; i < Math.Round(300 / sliceThickness); i++)
+            List<Point3D> pointsToBeRotated = new List<Point3D>();
+            //extend the circle to a cylinder, only go ~38cm north and south (about the size of the gantry head)
+            //iterate every 5mm
+            for (int i = 0; i <= 388; i+=4)
             {
-                foreach (var point in oneSlicePointList)
+                foreach (var tup in oneSlicePointList)
                 {
-                    double PosZ = point.Z + i * sliceThickness;
-                    double NegZ = point.Z - i * sliceThickness;
+                    Point3D point = tup.Item1;
 
-                    Point3D PosPoint = new Point3D(point.X, point.Y, PosZ);
-                    Point3D NegPoint = new Point3D(point.X, point.Y, NegZ);
 
-                    AllPoints.Add(PosPoint);
-                    AllPoints.Add(NegPoint);
+                    if (tup.Item2 == 0)
+                    {
+
+                        double PosZ = point.Z + i;
+                        double NegZ = point.Z - i;
+
+                        Point3D PosPoint = new Point3D(point.X, point.Y, PosZ);
+                        Point3D NegPoint = new Point3D(point.X, point.Y, NegZ);
+
+                        Tuple<Point3D, string> PosPointAsTup = new Tuple<Point3D, string>(PosPoint, tup.Item3);
+                        Tuple<Point3D, string> NegPointAsTup = new Tuple<Point3D, string>(NegPoint, tup.Item3);
+
+                        AllPoints.Add(PosPointAsTup);
+                        AllPoints.Add(NegPointAsTup);
+
+
+                    }
+                    else
+                    {
+                        double PosZ = point.Z + i;
+                        double NegZ = point.Z - i;
+
+                        Point3D PosPoint = new Point3D(point.X, point.Y, PosZ);
+                        Point3D NegPoint = new Point3D(point.X, point.Y, NegZ);
+
+
+
+                        Point3D rotatedPoint = RotateAroundYAxis(PosPoint, isocenter, (double)tup.Item2);
+                        Point3D rotatedPoint1 = RotateAroundYAxis(NegPoint, isocenter, (double)tup.Item2);
+
+                        Tuple<Point3D, string> PosPointAsTup = new Tuple<Point3D, string>(rotatedPoint, tup.Item3);
+                        Tuple<Point3D, string> NegPointAsTup = new Tuple<Point3D, string>(rotatedPoint1, tup.Item3);
+
+
+
+                        AllPoints.Add(PosPointAsTup);
+                        AllPoints.Add(NegPointAsTup);
+                    }
+                    
 
                 }
 
             }
-           
+
+
+
+            var gantryCapList = MakeGantryCapCircle(plan, isocenter);
+
+
+            //AllPoints.Clear();
+
+
+            AllPoints.AddRange(gantryCapList);
+
 
             return AllPoints;
 
         }
 
 
-        public static List<Point3D> CreateConePlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, PlanSetup planSetup)
+        public static List<Tuple<Point3D, string>> MakeGantryCapCircle(PlanSetup plan, VVector isocenter)
+        {
+
+            List<Beam> planBeams = plan.Beams.Where(c => c.IsSetupField == false).ToList();
+
+            double x;
+            double y;
+            
+
+            Vector3 circleNorm = new Vector3(0, 0, 1);
+
+
+            Vector3 isoVect3 = new Vector3((float)isocenter.x, (float)isocenter.y, (float)isocenter.z);
+
+            List<Tuple<Point3D, string>> resultingPoints = new List<Tuple<Point3D,string>>();
+
+            foreach (var beam in planBeams)
+            {
+                List<Vector3> circlePoints = new List<Vector3>();
+
+            
+                for (double i = 0; i < Math.PI*2; i+= (Math.PI/75))
+                {
+                    for (int k = 88; k <= 388; k+=100)
+                    {
+                        y = k * Math.Sin(i);
+
+                        x = -k * Math.Cos(i);
+
+                        circlePoints.Add(new Vector3((float)x, (float)y, 0));
+
+
+                    }
+
+
+                }
+
+                //doesnt work for couch kicks?
+                VVector startingSource = beam.GetSourceLocation(beam.ControlPoints.First().GantryAngle);
+                VVector endingSource = beam.GetSourceLocation(beam.ControlPoints.Last().GantryAngle); ;
+
+
+             
+
+                Vector3 isoToStart = new Vector3((float)(startingSource.x - isocenter.x), (float)(startingSource.y - isocenter.y), (float)(startingSource.z - isocenter.z) );
+                Vector3 isoToEnd = new Vector3((float)(endingSource.x - isocenter.x), (float)(endingSource.y - isocenter.y), (float)(endingSource.z - isocenter.z) );
+
+                Vector3 rotationAxisStart = Vector3.Cross(circleNorm, isoToStart);
+                Vector3 rotationAxisEnd = Vector3.Cross(circleNorm, isoToEnd);
+
+
+                float rotationAngle1 = (float)Math.Acos(Vector3.Dot(circleNorm, Vector3.Normalize(isoToStart)));
+                float rotationAngle2 = (float)Math.Acos(Vector3.Dot(circleNorm, Vector3.Normalize(isoToEnd)));
+
+      
+                rotationAxisStart = Vector3.Normalize(rotationAxisStart);
+                rotationAxisEnd = Vector3.Normalize(rotationAxisEnd);
+
+                Matrix4x4 rotationMatrix1 = Matrix4x4.CreateFromAxisAngle(rotationAxisStart, rotationAngle1);
+                Matrix4x4 rotationMatrix2 = Matrix4x4.CreateFromAxisAngle(rotationAxisEnd, rotationAngle2);
+
+                foreach (var point in circlePoints)
+                {
+                    
+                    var pointStart = Vector3.Transform(point, rotationMatrix1);
+                    var pointEnd = Vector3.Transform(point, rotationMatrix2);
+
+              
+                    var pointStartRes = pointStart + isoVect3 + Vector3.Normalize(isoToStart)*380;
+                    var pointEndRes = pointEnd + isoVect3 + Vector3.Normalize(isoToEnd) * 380;
+
+                    Point3D startPointResult = new Point3D(pointStartRes.X, pointStartRes.Y, pointStartRes.Z);
+                    Point3D endPointResult = new Point3D(pointEndRes.X, pointEndRes.Y, pointEndRes.Z);
+
+                    Tuple<Point3D, string> startAsTuple = new Tuple<Point3D, string>(startPointResult, beam.Id);
+                    Tuple<Point3D, string> endAsTuple = new Tuple<Point3D, string>(endPointResult, beam.Id);
+
+
+                    resultingPoints.Add(startAsTuple);
+                    resultingPoints.Add(endAsTuple);
+
+
+                }
+
+
+            }
+           
+
+            return resultingPoints;
+
+        }
+
+
+        public static Point3D RotateAroundYAxis(Point3D point3D, VVector isocenter, double couchKick)
+        {
+            Point3D isoAsPoint = new Point3D(isocenter.x, isocenter.y, isocenter.z);
+
+            Point3D OriginPoints = new Point3D(point3D.X - isoAsPoint.X, point3D.Y - isoAsPoint.Y, point3D.Z - isoAsPoint.Z);
+
+            double couchKickRad = couchKick * (Math.PI / 180);
+
+            float x = (float)(OriginPoints.X * Math.Cos(couchKickRad) + OriginPoints.Z * Math.Sin(couchKickRad));
+            float z = (float)(OriginPoints.Z * Math.Cos(couchKickRad) - OriginPoints.X * Math.Sin(couchKickRad));
+
+            return new Point3D(x + isocenter.x, OriginPoints.Y + isocenter.y, z + isocenter.z);
+
+
+        }
+
+        public static VVector RotateAroundYAxis1(Point3D point3D, VVector isocenter, double couchKick, Beam beam)
+        {
+            Point3D isoAsPoint = new Point3D(isocenter.x, isocenter.y, isocenter.z);
+
+            Point3D OriginPoints = new Point3D(point3D.X - isoAsPoint.X, point3D.Y - isoAsPoint.Y, point3D.Z - isoAsPoint.Z);
+
+            double couchKickRad = couchKick * (Math.PI / 180);
+
+            float x = (float)(OriginPoints.X * Math.Cos(couchKickRad) + OriginPoints.Z * Math.Sin(couchKickRad));
+            float z = (float)(OriginPoints.Z * Math.Cos(couchKickRad) - OriginPoints.X * Math.Sin(couchKickRad));
+
+            return new VVector(x + isocenter.x, OriginPoints.Y + isocenter.y, z + isocenter.z);
+
+
+        }
+
+        public static List<Tuple<Point3D, string>> CreateConePlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, PlanSetup planSetup)
         {
             //find the iso position
             //find the SSD? (electron plans are fixed SSD setups)
@@ -1608,7 +1890,7 @@ namespace PlanChecks
 
 
             List<Point3D> AllPoints = new List<Point3D>();
-            List<Point3D> AllPointsTranslated = new List<Point3D>();
+            List<Tuple<Point3D, string>> AllPointsTranslated = new List<Tuple<Point3D, string>>();
 
 
             var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
@@ -1660,8 +1942,10 @@ namespace PlanChecks
                     VVector addedPoint = bottomOfCone + point3D;
                     Point3D finalPoint = new Point3D(addedPoint.x, addedPoint.y, addedPoint.z);
 
+                    Tuple<Point3D, string> finalAsTup = new Tuple<Point3D, string>(finalPoint, firstBeam.Id);
+
                     //newPointList.Add(finalPoint);
-                    AllPointsTranslated.Add(finalPoint);
+                    AllPointsTranslated.Add(finalAsTup);
 
                 }
             }
@@ -1672,11 +1956,11 @@ namespace PlanChecks
 
         }
 
-        public static List<Point3D> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, Beam beam)
+        public static List<Tuple<Point3D, string>> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, Beam beam)
         {
             
             List<Point3D> AllPoints = new List<Point3D>();
-            List<Point3D> AllPointsTranslated = new List<Point3D>();
+            List<Tuple<Point3D, string>> AllPointsTranslated = new List<Tuple<Point3D, string>>();
 
 
             //var firstBeam = planSetup.Beams.FirstOrDefault(c => c.IsSetupField == false);
@@ -1687,7 +1971,7 @@ namespace PlanChecks
 
             sourceToIso.ScaleToUnitLength();
 
-            //bottom of cone is ~ 3.5cm back from the iso
+            //gantry head ~ 38cm from iso
             var gantryPlane = isocenter - sourceToIso * 380;
 
             //define a plane using a normal vector
@@ -1695,7 +1979,7 @@ namespace PlanChecks
             Plane perpendicularPlane = new Plane(new Vector3((float)sourceToIso.x, (float)sourceToIso.y, (float)sourceToIso.z), 0);
 
 
-
+            //make the rotation matrix
             Matrix4x4 rotMatrix = Matrix4x4.CreateFromAxisAngle(new Vector3(0, 0, 1), (float)(gantryAngle * (Math.PI / 180)));
 
             //mm
@@ -1716,8 +2000,11 @@ namespace PlanChecks
                     VVector addedPoint = gantryPlane + point3D;
                     Point3D finalPoint = new Point3D(addedPoint.x, addedPoint.y, addedPoint.z);
 
+                    Tuple<Point3D, string> finalAsTup = new Tuple<Point3D, string>(finalPoint, beam.Id);
+
+
                     //newPointList.Add(finalPoint);
-                    AllPointsTranslated.Add(finalPoint);
+                    AllPointsTranslated.Add(finalAsTup);
 
                 }
             }
@@ -1782,7 +2069,7 @@ namespace PlanChecks
         /// <param name="cylinderMeshPositions"></param>
         /// <param name="isocenter"></param>
         /// <returns>The first point under 2cm distance or the shortest distance it finds after comparing all the points.</returns>
-        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Point3D> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
+        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
         {
             Point3D returnPoint1 = new Point3D();
             Point3D returnPoint2 = new Point3D();
@@ -1790,7 +2077,7 @@ namespace PlanChecks
             int i = 0;
 
             //only use body points which are in the neighborhood of the iso in the z direction
-            var zList = cylinderMeshPositions.Select(c => c.Z).ToList();
+            var zList = cylinderMeshPositions.Select(c=> c.Item1).ToList().Select(c => c.Z).ToList();
             zList.Sort();
             var zMin = zList.First();
             var zMax = zList.Last();
@@ -1803,15 +2090,23 @@ namespace PlanChecks
             if (Math.Abs(zMax-zMin) <= 300)
             {
                 nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax + 100 && c.Z >= zMin - 100).ToList();
+               
             }
             else
             {
                 nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
+
+                if (nearbyBodyPositions.Any() == false)
+                {
+                    nearbyBodyPositions = bodyMeshPositions;
+                }
+                
+
             }
 
 
             //group the cylinder positions together with cylinder positions? to prevent the farthest ones away to have to compare
-            var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Z).ToList();
+            var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Item1.Z).ToList();
             var groupedNearbyBodyPositionsLists = nearbyBodyPositions.GroupBy(c => c.Z).ToList();
 
             //compare the body and mesh points in groups to save time
@@ -1826,7 +2121,7 @@ namespace PlanChecks
 
                         foreach (Point3D point1 in groupBody)
                         {
-                            foreach (Point3D point2 in groupCylinder)
+                            foreach (Point3D point2 in groupCylinder.Select(c=> c.Item1))
                             {
                                 if (shortestDistance >= 0.3)
                                 {
@@ -1853,49 +2148,104 @@ namespace PlanChecks
 
             }
 
-
-
-            //get every nth point from the body mesh
-            //saves time by not plotting every point
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).ToList();
-            List<Point3D> every10thMesh = cylinderMeshPositions.Where((item, index) => (index + 1) % 2 == 0).ToList();
-            //add the points to a model
-            PointsVisual3D pointsVisual3D = new PointsVisual3D()
+            //define everynthmesh so you can shuffle the points with rng
+            List<Tuple<Point3D, string>> every10thMesh1 = cylinderMeshPositions;
+            //shuffle the points in the list so you can use every 3rd without introducing aliasing
+            Random rng = new Random();
+            int n = every10thMesh1.Count;
+            while (n > 1)
             {
-                Color = Colors.Blue,
-                Size = 2,
-                Points = new Point3DCollection(every10thBody)
-            };
+                n--;
+                int k = rng.Next(n + 1);
+                var value = every10thMesh1[k];
+                every10thMesh1[k] = every10thMesh1[n];
+                every10thMesh1[n] = value;
 
-            ModelVisual3D modelVisual3D = new ModelVisual3D();
-            modelVisual3D.Children.Add(pointsVisual3D);
+            }
+
 
             
 
+            //get every nth point from the body mesh
+            //saves time by not plotting every point
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).Distinct().ToList();
+            //assign value to global variable to use outside scope
+            bodyMeshGlobal = every10thBody;
+            List<Tuple<Point3D, string>> every10thMesh = every10thMesh1.Where((item, index) => (index + 1) % 1 == 0).Distinct().ToList();
+            //assign value to global variable to use outside scope
+            arcMeshGlobal = every10thMesh;
+
+            //instantiate the model3D class we will add to the viewPort of Helix3D
+            ModelVisual3D modelVisual3D = new ModelVisual3D();
+
+
+            ////add the points to a Helix3D model
+            //PointsVisual3D pointsVisual3D = new PointsVisual3D()
+            //{
+            //    Color = Colors.Blue,
+            //    Size = 2,
+            //    Points = new Point3DCollection(every10thBody)
+
+
+            //};
+
+
+            //globalModelVisual3D = modelVisual3D;
+            ////adds the body points to 3D view
+            //modelVisual3D.Children.Add(pointsVisual3D);
 
 
 
-            //do the same for the cylinder mesh
-            PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
-            {
-                Color = Colors.Green,
-                Size = 2,
-                Points = new Point3DCollection(every10thMesh)
-            };
+            ////for showing the isocenter
+            //var iso1 = new Point3D(isocenter.x, isocenter.y, isocenter.z);
+            //var isoList1 = new List<Point3D>() { iso1};
+            //PointsVisual3D pointsVisual3Diso = new PointsVisual3D()
+            //{
+            //    Color = Colors.Yellow,
+            //    Size = 10,
+            //    Points = new Point3DCollection(isoList1)
 
-            modelVisual3D.Children.Add(pointsVisual3Dcyl);
-            viewPort.Children.Clear();
-            viewPort.Children.Add(modelVisual3D);
+            //};
+            ////ads iso to view as a yellow block
+            //modelVisual3D.Children.Add(pointsVisual3Diso);
+
+
+            //List<string> checkedBeams = new List<string>();
+            ////only add the points to the cylinder mesh if selected in UI
+            //foreach (var item in checkBoxContainer.Items)
+            //{
+            //    CheckBox checkBox = (CheckBox)item;
+            //    if (checkBox.IsChecked == true)
+            //    {
+            //        checkedBeams.Add((string)checkBox.Content);
+            //    }
+
+            //}
+
+            ////do the same for the cylinder mesh
+            //PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
+            //{
+            //    Color = Colors.Green,
+            //    Size = 2,
+            //    Points = new Point3DCollection(every10thMesh.Where(c=> checkedBeams.Contains(c.Item2)).Select(c => c.Item1))
+            //};
+
+            //modelVisual3D.Children.Add(pointsVisual3Dcyl);
+            //viewPort.Children.Clear();
+            //viewPort.Children.Add(modelVisual3D);
+
+
+            PlotArcsInCollisionModel(every10thMesh, modelVisual3D, isocenter, every10thBody);
 
 
             //orient the visual model correctly depending on treatment orientation
             //orient view cube correctly depending on treatment orientation
-            viewPort.ViewCubeFrontText = "L";
-            viewPort.ViewCubeBackText = "R";
-            viewPort.ViewCubeBottomText = "I";
-            viewPort.ViewCubeTopText = "S";
-            viewPort.ViewCubeLeftText = "P";
-            viewPort.ViewCubeRightText = "A";
+            viewPortGlobal.ViewCubeFrontText = "L";
+            viewPortGlobal.ViewCubeBackText = "R";
+            viewPortGlobal.ViewCubeBottomText = "I";
+            viewPortGlobal.ViewCubeTopText = "S";
+            viewPortGlobal.ViewCubeLeftText = "P";
+            viewPortGlobal.ViewCubeRightText = "A";
 
             Vector3D Updirection;
             Vector3D Lookdirection;
@@ -1907,8 +2257,8 @@ namespace PlanChecks
                 position = new Point3D(2.9, -2148, -3758);
                 Lookdirection = new Vector3D(0, 2296, 3747);
 
-                viewPort.ViewCubeLeftText = "P";
-                viewPort.ViewCubeRightText = "A";
+                viewPortGlobal.ViewCubeLeftText = "P";
+                viewPortGlobal.ViewCubeRightText = "A";
 
 
             }
@@ -1918,8 +2268,8 @@ namespace PlanChecks
                 Lookdirection = new Vector3D(-17, -988, -4281);
                 position = new Point3D(-37, 1237, 4243);
 
-                viewPort.ViewCubeFrontText = "L";
-                viewPort.ViewCubeBackText = "R";
+                viewPortGlobal.ViewCubeFrontText = "L";
+                viewPortGlobal.ViewCubeBackText = "R";
 
 
             }
@@ -1929,10 +2279,10 @@ namespace PlanChecks
                 Lookdirection = new Vector3D(-17, -988, -4281);
                 position = new Point3D(-37, 1237, 4243);
 
-                viewPort.ViewCubeFrontText = "L";
-                viewPort.ViewCubeBackText = "R";
-                viewPort.ViewCubeLeftText = "P";
-                viewPort.ViewCubeRightText = "A";
+                viewPortGlobal.ViewCubeFrontText = "L";
+                viewPortGlobal.ViewCubeBackText = "R";
+                viewPortGlobal.ViewCubeLeftText = "P";
+                viewPortGlobal.ViewCubeRightText = "A";
 
 
             }
@@ -1962,16 +2312,87 @@ namespace PlanChecks
             };
 
             //change the zoom sensitivity
-            viewPort.ZoomSensitivity = 0.5;
+            viewPortGlobal.ZoomSensitivity = 0.5;
 
             //viewPort.ShowCameraInfo = true;
 
-            viewPort.Camera = camera;
+            viewPortGlobal.Camera = camera;
             
 
             Tuple<Point3D, Point3D, double> returnTuple = new Tuple<Point3D, Point3D, double>(returnPoint1, returnPoint2, shortestDistance);
 
             return returnTuple;
+        }
+
+
+        public static void PlotArcsInCollisionModel(List<Tuple<Point3D, string>> every10thMesh, ModelVisual3D modelVisual3D, VVector isocenter, List<Point3D> every10thBody)
+        {
+            
+            List<string> checkedBeams = new List<string>();
+            //only add the points to the cylinder mesh if checkboxes are selected in UI
+            foreach (var item in checkBoxContainerGlobal.Items)
+            {
+                CheckBox checkBox = (CheckBox)item;
+
+                if (checkBox.IsChecked == true)
+                {
+                    checkedBeams.Add((string)checkBox.Content);
+                }
+
+            }
+         
+
+            //do the same for the cylinder mesh
+            PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
+            {
+                Color = Colors.Green,
+                Size = 2,
+                Points = new Point3DCollection(every10thMesh.Where(c => checkedBeams.Contains(c.Item2)).Select(c => c.Item1))
+            };
+
+            //clear plotted data and then plot the cylinder mesh
+            modelVisual3D.Children.Clear();
+            modelVisual3D.Children.Add(pointsVisual3Dcyl);
+      
+
+            plotCounter++;
+            viewPortGlobal.Children.Clear();
+            viewPortGlobal.Children.Add(modelVisual3D);
+
+
+            //add the body points to a model
+            PointsVisual3D pointsVisual3D = new PointsVisual3D()
+            {
+                Color = Colors.Blue,
+                Size = 2,
+                Points = new Point3DCollection(every10thBody)
+
+
+            };
+
+
+            globalModelVisual3D = modelVisual3D;
+            //adds the body points to 3D view
+            modelVisual3D.Children.Add(pointsVisual3D);
+
+
+
+            //for showing the isocenter
+            var iso1 = new Point3D(isocenter.x, isocenter.y, isocenter.z);
+            var isoList1 = new List<Point3D>() { iso1 };
+            PointsVisual3D pointsVisual3Diso = new PointsVisual3D()
+            {
+                Color = Colors.Yellow,
+                Size = 10,
+                Points = new Point3DCollection(isoList1)
+
+            };
+            //ads iso to view as a yellow block
+            modelVisual3D.Children.Add(pointsVisual3Diso);
+
+
+
+
         }
 
 
@@ -2188,17 +2609,40 @@ namespace PlanChecks
 
         }
 
+       
+
+        private void NewCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                PlotArcsInCollisionModel(arcMeshGlobal, globalModelVisual3D, context1.PlanSetup.Beams.FirstOrDefault(c=> c.IsSetupField==false).IsocenterPosition, bodyMeshGlobal );
+
+            }
+            catch (Exception m)
+            {
+                MessageBox.Show(m.Message);
+                
+            }
+        }
+
+
+        //private void CheckBox_MouseUp(object sender, MouseButtonEventArgs e)
+        //{
+        //    CollisionCheck(context1.PlanSetup);
+
+        //}
+
         //private static void FillPlanComboBox(ScriptContext scriptContext, ComboBox comboBox)
         //{
         //    List <PlanSetup> scopePlans = scriptContext.PlansInScope.ToList();
-           
+
         //    foreach (var plan in scopePlans)
         //    {
         //        if (plan.PlanIntent.ToLower() != "verification")
         //        {
         //            comboBox.Items.Add(plan.Id);
         //        }
-         
+
         //    }
 
         //    foreach (var item in comboBox.Items)
@@ -2214,7 +2658,7 @@ namespace PlanChecks
 
         //private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         //{
-            
+
         //    Main(context1, PlanComboBox, viewPort, OutputList, OutputListRX, HorizontalStackPanel, ReportDataGrid, ReportDataGrid_Rx);
         //}
     }
