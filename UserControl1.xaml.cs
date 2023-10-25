@@ -105,7 +105,7 @@ namespace PlanChecks
             if (plan.Dose != null)
             {
                 actualRes = (plan.Dose.XRes / 10);
-                if (expectedRes == actualRes)
+                if (expectedRes >= actualRes)
                 {
                     ResResult = true;
                 }
@@ -136,7 +136,12 @@ namespace PlanChecks
                 algoused = plan.PhotonCalculationModel;
                 algomatch = (plan.PhotonCalculationModel == "AAA_1610");
             }
-            //if electrons? hoskins, kenneth patient plan for reference
+            else if (temp == "ELECTRON")
+            {
+                algoexpected = "EMC_1610";
+                algoused = plan.ElectronCalculationModel;
+                algomatch = (plan.ElectronCalculationModel == "EMC_1610");
+            }
 
             List<string> couches = new List<string>();
 
@@ -449,8 +454,8 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
                 new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
 
-                new Tuple<string, string, string, bool?>("Total Plan MU", "<=4000", totalMUdoub.ToString(),  (totalMUdoub <= 4000)? true : false),
-                new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : false),
+                new Tuple<string, string, string, bool?>("Total Plan MU", "<=4000", totalMUdoub.ToString(),  (totalMUdoub <= 4000)? true : (bool?)null),
+                new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Dose Max in Target",  globaldosemax.ToString() + "% ",  volname,  (samemax)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Structures in Calc Volume",  "100% ",  fullcoverage,  (fullcoverage=="100%")? true : false),
                 //new Tuple<string, string, string, bool?>("Flash VMAT", flash1, flash2, (flash1 == flash2) ? true : false),
@@ -481,13 +486,23 @@ namespace PlanChecks
 
         };
 
+            string gantryDir = alternatingGantryDir(plan);
+            if (gantryDir != "SKIP")
+            {
+                string diffCol = differentCollimatorAngles(plan);
+
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Gantry Directions", "Should Alternate", gantryDir, (gantryDir == "Alternates") ? true : (bool?)null));
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Diff Coll Angles", "Different", diffCol, (diffCol== "Different") ? true : (bool?)null));
+
+            }
+
             if (machname == "TrueBeamNE")
             {
                 var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
                 if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
                 {
-
-                    OutputList.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
+                    
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
                 }
             }
 
@@ -529,6 +544,105 @@ namespace PlanChecks
           
 
         }
+        public static string differentCollimatorAngles(PlanSetup plan)
+        {
+
+            bool isUnique = false;
+            string returner = "Same";
+            
+            List<double> collAngles = new List<double>();
+
+            foreach (var beam in plan.Beams){
+                if (!beam.IsSetupField)
+                {
+                    collAngles.Add(beam.ControlPoints.First().CollimatorAngle);
+                }
+            }
+
+            isUnique = collAngles.Distinct().Count() == collAngles.Count();
+            if (isUnique) { returner = "Different"; }
+            
+            return returner;
+        }
+        public static string alternatingGantryDir(PlanSetup plan)
+        {
+
+            var CheckBeamsForVMAT = plan.Beams.Where(b => b.IsSetupField != true).FirstOrDefault();
+
+            if (CheckBeamsForVMAT.MLCPlanType != MLCPlanType.VMAT)
+            {
+                return "SKIP";
+            }
+            else
+            {
+                int beamcount = 0;
+                int CWcount = 0;
+                int CCWcount = 0;
+
+                foreach (var beam in plan.Beams)
+                {
+                    if (!beam.IsSetupField)
+                    {
+                        beamcount++;
+                        if (beam.GantryDirection == GantryDirection.Clockwise)
+                        {
+                            CWcount++;
+                        }
+                        else if (beam.GantryDirection == GantryDirection.CounterClockwise)
+                        {
+                            CCWcount++;
+                        }
+                    }
+                }
+
+                if (beamcount <= 1)
+                {
+                    return "NO";
+                }
+                else if (beamcount <= 3)
+                {
+                    if (CWcount >= 1 && CCWcount >= 1)
+                    {
+                        return "Alternates";
+                    }
+                    else return "NO";
+                }
+                else if (beamcount <= 5)
+                {
+                    if (CWcount >= 2 && CCWcount >= 2)
+                    {
+                        return "Alternates";
+                    }
+                    else return "NO";
+                }
+                else if (beamcount <= 7)
+                {
+                    if (CWcount >= 3 && CCWcount >= 3)
+                    {
+                        return "Alternates";
+                    }
+                    else return "NO";
+                }
+                else if (beamcount <= 9)
+                {
+                    if (CWcount >= 4 && CCWcount >= 4)
+                    {
+                        return "Alternates";
+                    }
+                    else return "NO";
+                }
+                else return "???";
+
+
+
+
+
+            }
+
+
+        }
+
+
         public static string VertexBeamsToString(PlanSetup plan)
         {
             string BeamString = "";
