@@ -486,6 +486,36 @@ namespace PlanChecks
 
         };
 
+            string findLat = findLaterality(plan);
+            if(plan.RTPrescription.Id.ToLower().Contains("prostate")&& findLat == "CENTRAL")
+            {
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
+
+            }
+            else if (plan.RTPrescription.Id.ToLower().Contains("left") && findLat == "LEFT")
+            {
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
+
+            }
+            else if (plan.RTPrescription.Id.ToLower().Contains("left") && findLat != "LEFT")
+            {
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+
+            }
+            else if (plan.RTPrescription.Id.ToLower().Contains("right") && findLat == "RIGHT")
+            {
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
+
+            }
+            else if (plan.RTPrescription.Id.ToLower().Contains("right") && findLat != "RIGHT")
+            {
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+
+            }
+            else { 
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, (bool?)null));
+            }
+
             string gantryDir = alternatingGantryDir(plan);
             if (gantryDir != "SKIP")
             {
@@ -544,6 +574,30 @@ namespace PlanChecks
           
 
         }
+
+        public static string findLaterality(PlanSetup plan)
+        {
+            var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
+            var targetStructure = plan.StructureSet.Structures.Where(c => c.DicomType.ToLower().Contains("ptv")).FirstOrDefault();
+
+            string laterality = "";
+            if (body.CenterPoint.x - targetStructure.CenterPoint.x > 10)
+            {
+                laterality = "RIGHT";
+            }
+            else if (body.CenterPoint.x - targetStructure.CenterPoint.x < -10)
+            {
+                laterality = "LEFT";
+            }
+            else
+            {
+                laterality = "CENTRAL";
+            }
+
+            return laterality;
+        }
+
+
         public static string differentCollimatorAngles(PlanSetup plan)
         {
 
