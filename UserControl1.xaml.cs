@@ -492,22 +492,30 @@ namespace PlanChecks
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
             }
-            else if (plan.RTPrescription.Id.ToLower().Contains("left") && findLat == "LEFT")
+            else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
+                plan.RTPrescription.Id.ToLower().Contains("lul") ||
+                plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat == "LEFT")
             {
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
             }
-            else if (plan.RTPrescription.Id.ToLower().Contains("left") && findLat != "LEFT")
+            else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
+                plan.RTPrescription.Id.ToLower().Contains("lul") ||
+                plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat != "LEFT")
             {
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
 
             }
-            else if (plan.RTPrescription.Id.ToLower().Contains("right") && findLat == "RIGHT")
+            else if ((plan.RTPrescription.Id.ToLower().Contains("right") || 
+                plan.RTPrescription.Id.ToLower().Contains("rul") ||
+                plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat == "RIGHT")
             {
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
             }
-            else if (plan.RTPrescription.Id.ToLower().Contains("right") && findLat != "RIGHT")
+            else if ((plan.RTPrescription.Id.ToLower().Contains("right") ||
+                plan.RTPrescription.Id.ToLower().Contains("rul") ||
+                plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat != "RIGHT")
             {
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
 
@@ -577,9 +585,10 @@ namespace PlanChecks
 
         public static string findLaterality(PlanSetup plan)
         {
-            var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
-            var targetStructure = plan.StructureSet.Structures.Where(c => c.DicomType.ToLower().Contains("ptv")).FirstOrDefault();
-
+            var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
+            
+            var targetStructure = plan.StructureSet.Structures.Where(c => (c.DicomType.ToLower().Contains("ptv")) || (c.DicomType.ToLower().Contains("ctv")) || (c.DicomType.ToLower().Contains("gtv"))).FirstOrDefault();
+            if (targetStructure == null) { return "NAN"; }
             string laterality = "";
             if (body.CenterPoint.x - targetStructure.CenterPoint.x > 10)
             {
