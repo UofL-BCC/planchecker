@@ -487,41 +487,46 @@ namespace PlanChecks
         };
 
             string findLat = findLaterality(plan);
-            if(plan.RTPrescription.Id.ToLower().Contains("prostate")&& findLat == "CENTRAL")
+            if (plan.RTPrescription != null)
             {
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
-            }
-            else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
-                plan.RTPrescription.Id.ToLower().Contains("lul") ||
-                plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat == "LEFT")
-            {
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
+                if (plan.RTPrescription.Id.ToLower().Contains("prostate") && findLat == "CENTRAL")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
-            }
-            else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
-                plan.RTPrescription.Id.ToLower().Contains("lul") ||
-                plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat != "LEFT")
-            {
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+                }
+                else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
+                    plan.RTPrescription.Id.ToLower().Contains("lul") ||
+                    plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat == "LEFT")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
-            }
-            else if ((plan.RTPrescription.Id.ToLower().Contains("right") || 
-                plan.RTPrescription.Id.ToLower().Contains("rul") ||
-                plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat == "RIGHT")
-            {
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
+                }
+                else if ((plan.RTPrescription.Id.ToLower().Contains("left") ||
+                    plan.RTPrescription.Id.ToLower().Contains("lul") ||
+                    plan.RTPrescription.Id.ToLower().Contains("lll")) && findLat != "LEFT")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
 
-            }
-            else if ((plan.RTPrescription.Id.ToLower().Contains("right") ||
-                plan.RTPrescription.Id.ToLower().Contains("rul") ||
-                plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat != "RIGHT")
-            {
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+                }
+                else if ((plan.RTPrescription.Id.ToLower().Contains("right") ||
+                    plan.RTPrescription.Id.ToLower().Contains("rul") ||
+                    plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat == "RIGHT")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
-            }
-            else { 
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, (bool?)null));
+                }
+                else if ((plan.RTPrescription.Id.ToLower().Contains("right") ||
+                    plan.RTPrescription.Id.ToLower().Contains("rul") ||
+                    plan.RTPrescription.Id.ToLower().Contains("rll")) && findLat != "RIGHT")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+
+                }
+                else
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, (bool?)null));
+                }
             }
 
             string gantryDir = alternatingGantryDir(plan);
