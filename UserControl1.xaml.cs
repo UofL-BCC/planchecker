@@ -19,6 +19,7 @@ using VMS.TPS.Common.Model.Types;
 using HelixToolkit.Wpf;
 using System.Numerics;
 using MIConvexHull;
+using System.Diagnostics;
 
 namespace PlanChecks
 {
@@ -38,9 +39,15 @@ namespace PlanChecks
 
         public static List<Tuple<Point3D, string>> arcMeshGlobal;
 
+        public static List<Tuple<Point3D, string>> arcMeshGlobalDisplay;
+
         public static ModelVisual3D globalModelVisual3D;
 
+        public static List<Point3D> bodyMeshGlobalDisplay;
+
         public static List<Point3D> bodyMeshGlobal;
+
+        public static double? shortestDistanceGlobal;
 
         public static int plotCounter = 0;
 
@@ -51,15 +58,15 @@ namespace PlanChecks
             //context1 = context;
             viewPortGlobal = viewport;
             //ComboBox PlanComboBox = this.PlanComboBox;
-           // FillPlanComboBox(context, PlanComboBox);
-            
+            // FillPlanComboBox(context, PlanComboBox);
 
-        //}
 
-        //public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
-        //    List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
-        //    DataGrid ReportDataGrid_Rx)
-        //{
+            //}
+
+            //public static void Main(ScriptContext context , ComboBox PlanComboBox, HelixViewport3D viewPort, List<Tuple<string, string, string, bool?>> OutputList, 
+            //    List<Tuple<string, string, string, bool?>> OutputListRX, StackPanel HorizontalStackPanel, DataGrid ReportDataGrid, 
+            //    DataGrid ReportDataGrid_Rx)
+            //{
             //code behind goes here
             //UserControl userControl = new UserControl();
 
@@ -71,9 +78,9 @@ namespace PlanChecks
             Patient mypatient = context.Patient;
             Course course = context.Course;
 
-            
+
             //get plan from ui comboBox
-           // PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
+            // PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
             PlanSetup plan = context.PlanSetup;
 
 
@@ -255,7 +262,7 @@ namespace PlanChecks
                 //checkplantech(plan, out techname, out techpass);
                 checkplantechmatchesRX(plan, ref techname, out techpass);
 
-                
+
 
 
                 List<string> replaceStringList = new List<string>();
@@ -326,7 +333,7 @@ namespace PlanChecks
 
 
 
-            
+
 
             //add CheckBoxes to your ItemsControl, name them according to the plan beams, check them
             //this will be the user control to plot or not plot arcs in the collision model
@@ -349,23 +356,7 @@ namespace PlanChecks
             checkBoxContainerGlobal = this.CheckBoxContainer;
 
 
-            double? shortestDistance;
-            try
-            {
-                //make the viewport using helix3Dtoolkit for the collision model
-                //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
-                //return the shortest distance
-                shortestDistance = CollisionCheck(plan);
 
-
-
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show("Collision check encountered an error.\n" + e.Message);
-                shortestDistance = null;
-                throw;
-            }
 
 
             string jawtrackingexpected = "Off";
@@ -377,7 +368,7 @@ namespace PlanChecks
             string isJawTrackingOn = (plan.OptimizationSetup.Parameters.Any(x => x is OptimizationJawTrackingUsedParameter)) ? "Enabled" : "Off";
 
             double totalMUdoub = 0;
-            if (!noDose) { totalMUdoub= totalMU(plan);}
+            if (!noDose) { totalMUdoub = totalMU(plan); }
 
 
             double maxBeamMU = 0;
@@ -403,7 +394,7 @@ namespace PlanChecks
             if (!noDose) {
                 //MessageBox.Show("HERE");
                 fullcoverage = checkDoseCoverage(plan);
-                }
+            }
 
 
             string needflash = "Flash not used";
@@ -424,6 +415,18 @@ namespace PlanChecks
             //get Vertex beams and check for sketch gantry angles
             string vertexBeams = VertexBeamsToString(plan);
             string sketchVertexBeams = CheckVertexBeam(plan);
+
+
+
+            shortestDistanceGlobal = null;
+
+            //create the collision check visual model
+            var isocenter = plan.Beams.Where(c => c.IsSetupField == false).FirstOrDefault().IsocenterPosition;
+            var meshes = GetBodyAndGantryMeshes(plan);
+            arcMeshGlobal = meshes.Item2;
+            bodyMeshGlobal = meshes.Item1;
+            AssignBodyAndMeshGlobal(meshes.Item2, meshes.Item1);
+            CreateVisualModel(arcMeshGlobalDisplay, isocenter, bodyMeshGlobalDisplay, plan);
 
 
 
@@ -464,8 +467,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Vertex Beams", (vertexBeams == "")? "no vertex beams": vertexBeams , (sketchVertexBeams == "")? "" : "check for clearence \n" + sketchVertexBeams, (sketchVertexBeams == "")? true: false),
                 /*in the following line, there is a compact if else statement within a compact if else statement     */
-                new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm",(shortestDistance != null) ? Math.Round((double)shortestDistance, 2).ToString()+
-                " cm" : null , (shortestDistance >= 2) ? ((shortestDistance>4)? true:(bool?)null) : false)
+                new Tuple<string, string, string, bool?>("Collision", "Collision not computed", null , null)
 
 
             
@@ -535,7 +537,7 @@ namespace PlanChecks
                 string diffCol = differentCollimatorAngles(plan);
 
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Gantry Directions", "Should Alternate", gantryDir, (gantryDir == "Alternates") ? true : (bool?)null));
-                OutputList1.Add(new Tuple<string, string, string, bool?>("Diff Coll Angles", "Different", diffCol, (diffCol== "Different") ? true : (bool?)null));
+                OutputList1.Add(new Tuple<string, string, string, bool?>("Diff Coll Angles", "Different", diffCol, (diffCol == "Different") ? true : (bool?)null));
 
             }
 
@@ -544,7 +546,7 @@ namespace PlanChecks
                 var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
                 if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
                 {
-                    
+
                     OutputList1.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
                 }
             }
@@ -556,7 +558,6 @@ namespace PlanChecks
             //output looks something like this
             OutputList.AddRange(OutputList1);
             OutputListRX.AddRange(OutputList2);
-
 
 
             //code for databinding the list of plan check items to the data grid
@@ -582,16 +583,16 @@ namespace PlanChecks
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
 
-            
 
-          
+
+
 
         }
 
         public static string findLaterality(PlanSetup plan)
         {
             var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
-            
+
             var targetStructure = plan.StructureSet.Structures.Where(c => (c.DicomType.ToLower().Contains("ptv")) || (c.DicomType.ToLower().Contains("ctv")) || (c.DicomType.ToLower().Contains("gtv"))).FirstOrDefault();
             if (targetStructure == null) { return "NAN"; }
             string laterality = "";
@@ -617,10 +618,10 @@ namespace PlanChecks
 
             bool isUnique = false;
             string returner = "Same";
-            
+
             List<double> collAngles = new List<double>();
 
-            foreach (var beam in plan.Beams){
+            foreach (var beam in plan.Beams) {
                 if (!beam.IsSetupField)
                 {
                     collAngles.Add(beam.ControlPoints.First().CollimatorAngle);
@@ -629,7 +630,7 @@ namespace PlanChecks
 
             isUnique = collAngles.Distinct().Count() == collAngles.Count();
             if (isUnique) { returner = "Different"; }
-            
+
             return returner;
         }
         public static string alternatingGantryDir(PlanSetup plan)
@@ -720,7 +721,7 @@ namespace PlanChecks
                 List<string> vertexBeamList = plan.Beams.Where(c => (c.ControlPoints.First().PatientSupportAngle == 90)
             || (c.ControlPoints.First().PatientSupportAngle == 270)).Select(c => c.Id).ToList();
 
-                
+
                 foreach (var beamId in vertexBeamList)
                 {
                     BeamString += beamId + " \n";
@@ -729,9 +730,9 @@ namespace PlanChecks
             catch (Exception)
             {
                 BeamString = "";
-                
+
             }
-            
+
             return BeamString;
         }
         /// <summary>
@@ -742,29 +743,29 @@ namespace PlanChecks
         public static string CheckVertexBeam(PlanSetup planSetup)
         {
             List<string> sketchBeamList = new List<string>();
-            foreach (var beam in planSetup.Beams.Where(c=> c.IsSetupField == false).ToList())
+            foreach (var beam in planSetup.Beams.Where(c => c.IsSetupField == false).ToList())
             {
                 //90 is 270 in Eclipse
                 if (beam.ControlPoints.First().PatientSupportAngle == 270)
                 {
 
-                    if ((beam.ControlPoints.First().GantryAngle > 185 && beam.ControlPoints.First().GantryAngle < 355) == true || 
+                    if ((beam.ControlPoints.First().GantryAngle > 185 && beam.ControlPoints.First().GantryAngle < 355) == true ||
                         (beam.ControlPoints.Last().GantryAngle > 185 && beam.ControlPoints.Last().GantryAngle < 355) == true)
                     {
                         sketchBeamList.Add(beam.Id);
                     }
-                    
+
                 }
                 //270 is 90 in Eclipse
                 else if (beam.ControlPoints.First().PatientSupportAngle == 90)
                 {
 
-                    if ((beam.ControlPoints.First().GantryAngle > 5 & beam.ControlPoints.First().GantryAngle < 175) || 
+                    if ((beam.ControlPoints.First().GantryAngle > 5 & beam.ControlPoints.First().GantryAngle < 175) ||
                         (beam.ControlPoints.Last().GantryAngle > 5 & beam.ControlPoints.Last().GantryAngle < 175))
                     {
                         sketchBeamList.Add(beam.Id);
                     }
-                    
+
                 }
             }
 
@@ -777,7 +778,7 @@ namespace PlanChecks
             return sketchBeams;
         }
 
-        
+
 
         public static void checkRapidplan(PlanSetup plan, out string rpused, out string rpavail)
         {
@@ -890,7 +891,7 @@ namespace PlanChecks
             {
                 if (!beam.IsSetupField)
                 {
-                    maxsofar = (Math.Round(beam.Meterset.Value)>maxsofar) ? Math.Round(beam.Meterset.Value) : maxsofar;
+                    maxsofar = (Math.Round(beam.Meterset.Value) > maxsofar) ? Math.Round(beam.Meterset.Value) : maxsofar;
                 }
             }
 
@@ -916,7 +917,7 @@ namespace PlanChecks
                 }
             }
 
-           
+
 
             return total;
 
@@ -936,7 +937,7 @@ namespace PlanChecks
                     toleranceTables = "Missing for some beams";
                     break;
                 }
-                else if(beam.ToleranceTableLabel != toleranceTables) //if it's not blank, does it differ from our variable?
+                else if (beam.ToleranceTableLabel != toleranceTables) //if it's not blank, does it differ from our variable?
                 {
                     if (toleranceTables == "placeholder") //does it differ because the variable is still a placeholder variable? 
                     {
@@ -948,7 +949,7 @@ namespace PlanChecks
 
                     }
                 }
-                else if(beam.ToleranceTableLabel == toleranceTables)
+                else if (beam.ToleranceTableLabel == toleranceTables)
                 {
                 }
                 else
@@ -984,7 +985,7 @@ namespace PlanChecks
             {
                 techpass = true;
             }
-            else if(plan.RTPrescription.Technique == "IMRT" && techname == "VMAT")
+            else if (plan.RTPrescription.Technique == "IMRT" && techname == "VMAT")
             {
                 techpass = true;
             }
@@ -1102,7 +1103,7 @@ namespace PlanChecks
 
             }
 
-            
+
 
 
 
@@ -1163,7 +1164,7 @@ namespace PlanChecks
 
         public static string getPlanEnergy(PlanSetup plan)
         {
-           
+
             HashSet<string> termsSet = new HashSet<string>();
 
             foreach (var beam in plan.Beams)
@@ -1182,7 +1183,7 @@ namespace PlanChecks
 
             return combinedString;
 
-            
+
 
         }
         public static bool evalGated(PlanSetup plan)
@@ -1228,8 +1229,8 @@ namespace PlanChecks
         public static void maxDoseInPTV(PlanSetup plan, out bool samemax, out double globaldosemax, out string volname)
         {
             double global_DMax = 0;
-             samemax = false;
-             volname = "";
+            samemax = false;
+            volname = "";
             if (plan.Dose != null)
             {
 
@@ -1314,7 +1315,7 @@ namespace PlanChecks
                     if (structurex.GetAssignedHU(out assignedHU) && assignedHU != 99999)
                     {
                         string tempID = structurex.Id;
-                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID !="RightOuterRail" )
+                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail")
                         {
                             if (structurex.StructureCode != null)
                             {
@@ -1350,19 +1351,19 @@ namespace PlanChecks
 
 
         public static string findEmptyStructure(PlanSetup plan)
-    {
-
-        foreach (Structure structurex in plan.StructureSet.Structures)
         {
-            if (structurex.IsEmpty)
-            {
-                return "Empty Structure(s) found";
-            }
-        }
-        return "None";
-    }
 
-    public static string findSupport(PlanSetup plan)
+            foreach (Structure structurex in plan.StructureSet.Structures)
+            {
+                if (structurex.IsEmpty)
+                {
+                    return "Empty Structure(s) found";
+                }
+            }
+            return "None";
+        }
+
+        public static string findSupport(PlanSetup plan)
         {
             var supportStructures = plan.StructureSet.Structures.Where(s => s.StructureCode != null && s.StructureCode.Code.ToString() == "Support")
                                                      .OrderBy(s => s.Id)
@@ -1407,21 +1408,21 @@ namespace PlanChecks
 
         }
         public static bool findDRR(PlanSetup plan)
-    {
-        bool alldrr = true;
-
-        foreach (var beam in plan.Beams)
         {
-            if (beam.ReferenceImage == null && beam.Id.ToLower() != "cbct")
+            bool alldrr = true;
+
+            foreach (var beam in plan.Beams)
             {
-                alldrr = false;
+                if (beam.ReferenceImage == null && beam.Id.ToLower() != "cbct")
+                {
+                    alldrr = false;
+                }
             }
+            return alldrr;
+
         }
-        return alldrr;
 
-    }
-
-    public static void checkrate(PlanSetup plan, out bool samerate, out string ratename)
+        public static void checkrate(PlanSetup plan, out bool samerate, out string ratename)
         {
 
             samerate = true;
@@ -1543,7 +1544,7 @@ namespace PlanChecks
             {
                 var isoPoint = isoStructure.CenterPoint;
                 var originPoint = plan.StructureSet.Image.UserOrigin;
-               
+
                 if (Math.Abs(isoPoint.x - originPoint.x) < 0.005 &&
                     Math.Abs(isoPoint.y - originPoint.y) < 0.005 &&
                     Math.Abs(isoPoint.z - originPoint.z) < 0.005)
@@ -1555,23 +1556,14 @@ namespace PlanChecks
             return false;
         }
 
-
-        
-        //add cone for electron checks (about 3.5cm clearance)
-        public static double CollisionCheck(PlanSetup plan)
+        public static (List<Point3D> , List<Tuple<Point3D, string>>) GetBodyAndGantryMeshes(PlanSetup plan)
         {
-            //38 cm from iso = nono
-            //couches are inserted in plan as support structures
-            //If theres no couch it's prob a H/N with the baseplate included in the exteral
- 
-            
-
             var supportStructures = plan.StructureSet.Structures.Where(c => c.DicomType == "SUPPORT").ToList();
             var body = plan.StructureSet.Structures.Where(c => c.DicomType == "EXTERNAL").FirstOrDefault();
-          
 
 
-            var basePlate =  plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("baseplate") || c.Id.ToLower().Contains("base plate")).FirstOrDefault();
+
+            var basePlate = plan.StructureSet.Structures.Where(c => c.Id.ToLower().Contains("baseplate") || c.Id.ToLower().Contains("base plate")).FirstOrDefault();
 
             Point3DCollection bodyMeshPoints = body.MeshGeometry.Positions;
 
@@ -1579,7 +1571,7 @@ namespace PlanChecks
 
 
             //check if couches/baseplate are present
-            if (basePlate == null && supportStructures.Any() == false )
+            if (basePlate == null && supportStructures.Any() == false)
             {
                 //couch structures or baseplate are missing
                 BodyPlusCouch = bodyMeshPoints;
@@ -1608,19 +1600,93 @@ namespace PlanChecks
                 BodyPlusCouch = bodyMeshPoints;
             }
 
-
             var GantryCirclePoints = AddCylinderToMesh(plan);
 
-            var shortestDistance = ShortestDistance(BodyPlusCouch.ToList(), GantryCirclePoints, plan.Beams.Where(x=> x.IsSetupField == false).First().IsocenterPosition, plan);
-            //list of 2 points,  body and cylinder points that have the shortes distance between them
-            var resultingCoords = changeDICOMtoUserCoords(shortestDistance, plan);
-            //show results if necessary for debugging
-            //MessageBox.Show(resultingCoords.First().x.ToString()+ " : " + resultingCoords.First().y.ToString() + " : " + resultingCoords.First().z.ToString() + " \n"
-            //    + resultingCoords.Last().x.ToString() + " : " + resultingCoords.Last().y.ToString() + " : " + resultingCoords.Last().z.ToString() + " \n" +
-            //    shortestDistance.Item3.ToString() + " cm");
+            List<Point3D> BodyPlusCouchList = BodyPlusCouch.ToList();
+
+            return (BodyPlusCouchList, GantryCirclePoints);
+
+            
 
 
-            return shortestDistance.Item3;
+        }
+
+        public static void AssignBodyAndMeshGlobal(List<Tuple<Point3D, string>> cylinderMeshPositions, List<Point3D> bodyMeshPositions)
+        {
+            //only use body points which are in the neighborhood of the iso in the z direction
+            var zList = cylinderMeshPositions.Select(c => c.Item1).ToList().Select(c => c.Z).ToList();
+            zList.Sort();
+            var zMin = zList.First();
+            var zMax = zList.Last();
+
+            List<Point3D> nearbyBodyPositions = new List<Point3D>();
+
+
+            //find the neaby body points that you want to measure distance from the mesh
+            //use some extra body points if you are comparing e cone (easier to see body this way)
+            if (Math.Abs(zMax - zMin) <= 300)
+            {
+                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax + 100 && c.Z >= zMin - 100).ToList();
+
+            }
+            else
+            {
+                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
+
+                if (nearbyBodyPositions.Any() == false)
+                {
+                    nearbyBodyPositions = bodyMeshPositions;
+                }
+
+
+            }
+
+
+            //define everynthmesh so you can shuffle the points with rng
+            List<Tuple<Point3D, string>> every10thMesh1 = cylinderMeshPositions;
+            //shuffle the points in the list so you can use every 3rd without introducing aliasing
+            Random rng = new Random();
+            int n = every10thMesh1.Count;
+            while (n > 1)
+            {
+                n--;
+                int k = rng.Next(n + 1);
+                var value = every10thMesh1[k];
+                every10thMesh1[k] = every10thMesh1[n];
+                every10thMesh1[n] = value;
+
+            }
+
+
+
+
+            //get every nth point from the body mesh
+            //saves time by not plotting every point
+            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).Distinct().ToList();
+            //assign value to global variable to use outside scope
+            bodyMeshGlobalDisplay = every10thBody;
+            List<Tuple<Point3D, string>> every10thMesh = every10thMesh1.Where((item, index) => (index + 1) % 1 == 0).Distinct().ToList();
+            //assign value to global variable to use outside scope
+            arcMeshGlobalDisplay = every10thMesh;
+
+
+
+
+
+
+        }
+
+
+        public static void CollisionCheck(PlanSetup plan)
+        {
+            //38 cm from iso = nono
+            //couches are inserted in plan as support structures
+            //If theres no couch it's prob a H/N with the baseplate included in the exteral
+
+            //refer to where this global variables are defined above
+            //they are assigned just before the output list is generated
+            ShortestDistance(bodyMeshGlobal, arcMeshGlobal, plan.Beams.Where(x => x.IsSetupField == false).First().IsocenterPosition, plan);
+
 
         }
 
@@ -1663,7 +1729,7 @@ namespace PlanChecks
             {
                 GantryCirclePoints = CreateConePlane(isocenter, plan.StructureSet.Image, plan);
             }
-            else if(plan.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.First().GantryAngle !=
+            else if (plan.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.First().GantryAngle !=
                 plan.Beams.FirstOrDefault(c => c.IsSetupField == false).ControlPoints.Last().GantryAngle)
             {
                 GantryCirclePoints = CreateGantryArc(isocenter, 380, plan.StructureSet.Image, 10, plan);
@@ -1674,7 +1740,7 @@ namespace PlanChecks
                 List<double> gantryAngleList = new List<double>();
                 List<Tuple<Point3D, string>> pointList = new List<Tuple<Point3D, string>>();
 
-                foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
+                foreach (var beam in plan.Beams.Where(c => c.IsSetupField == false))
                 {
                     if (gantryAngleList.Contains(beam.ControlPoints.FirstOrDefault().GantryAngle) == false)
                     {
@@ -1704,13 +1770,13 @@ namespace PlanChecks
             var sliceThickness = plan.StructureSet.Image.ZRes;
 
             List<VVector> contoursSorted = new List<VVector>();
-            List<VVector[][]> vVectors = new List<VVector[][]>();  
+            List<VVector[][]> vVectors = new List<VVector[][]>();
             for (int i = 0; i < 20; i++)
             {
                 var contours = body.MeshGeometry.Positions;
                 var contours1 = contours.Select(e => new VVector(e.X, e.Y, e.Z)).ToList();
                 contoursSorted = contours1.OrderBy(c => c.z).ToList();
-                
+
             }
 
             if (contoursSorted.Any())
@@ -1721,11 +1787,11 @@ namespace PlanChecks
                 return numberOfSlices;
 
             }
-            else 
-            { 
-                return null; 
+            else
+            {
+                return null;
             }
-            
+
 
 
 
@@ -1741,12 +1807,12 @@ namespace PlanChecks
         /// <returns>The points on the circle</returns>
         public static List<Tuple<Point3D, string>> CreateGantryArc(VVector isocenter, double circleRadius, VMS.TPS.Common.Model.API.Image image, double thetaDegrees, PlanSetup plan)
         {
-            List<Tuple<Point3D, double?, string >> oneSlicePointList = new List<Tuple<Point3D, double?, string>>();
+            List<Tuple<Point3D, double?, string>> oneSlicePointList = new List<Tuple<Point3D, double?, string>>();
 
             //radians along the circle where we will put points
-            double smaplingRate = thetaDegrees *(Math.PI / 180);
+            double smaplingRate = thetaDegrees * (Math.PI / 180);
 
-            for (double i = 0; i < ((Math.PI*2)/ smaplingRate); i+= smaplingRate)
+            for (double i = 0; i < ((Math.PI * 2) / smaplingRate); i += smaplingRate)
             {
                 //72 iterations of 0.87 radians makes a full circle (every 5 degrees)
                 //i is theta
@@ -1754,10 +1820,10 @@ namespace PlanChecks
                 double y;
 
                 //in mm
-                if (plan.TreatmentOrientation == PatientOrientation.HeadFirstProne )
+                if (plan.TreatmentOrientation == PatientOrientation.HeadFirstProne)
                 {
                     y = circleRadius * Math.Sin(i);
-                 
+
                     x = -circleRadius * Math.Cos(i);
 
 
@@ -1788,28 +1854,28 @@ namespace PlanChecks
 
 
                 //check if the current angle on the circle falls in one of the arc sectors
-                foreach (var beam in plan.Beams.Where(c=> c.IsSetupField == false))
+                foreach (var beam in plan.Beams.Where(c => c.IsSetupField == false))
                 {
                     var arcsectors = GetArcSectors(beam);
 
                     double? couchKick = beam.ControlPoints.First().PatientSupportAngle;
 
-                    Tuple<Point3D, double?, string> circleTup = new Tuple<Point3D, double?, string>(circleCoord, couchKick, beam.Id); 
+                    Tuple<Point3D, double?, string> circleTup = new Tuple<Point3D, double?, string>(circleCoord, couchKick, beam.Id);
 
                     //MessageBox.Show("arcsector1 " + arcsectors.Item1 + " arcsector2 " + arcsectors.Item2);
 
 
                     if (arcsectors.Item3 == GantryDirection.CounterClockwise)
                     {
-                        if (arcsectors.Item1> arcsectors.Item2)
+                        if (arcsectors.Item1 > arcsectors.Item2)
                         {
                             //passing through 0 polar
 
-                            if (i>= arcsectors.Item1 && i<= 359*(Math.PI/180))
+                            if (i >= arcsectors.Item1 && i <= 359 * (Math.PI / 180))
                             {
                                 oneSlicePointList.Add(circleTup);
                             }
-                            else if (i>=0 && i<= arcsectors.Item2)
+                            else if (i >= 0 && i <= arcsectors.Item2)
                             {
                                 oneSlicePointList.Add(circleTup);
                             }
@@ -1817,7 +1883,7 @@ namespace PlanChecks
                         else
                         {
 
-                            if (i  >= arcsectors.Item1 && i <= arcsectors.Item2)
+                            if (i >= arcsectors.Item1 && i <= arcsectors.Item2)
                             {
                                 oneSlicePointList.Add(circleTup);
 
@@ -1827,16 +1893,16 @@ namespace PlanChecks
                     }
                     else
                     {
-                        if (arcsectors.Item1 < arcsectors.Item2 && (arcsectors.Item2 >= 270*(Math.PI/180)))
+                        if (arcsectors.Item1 < arcsectors.Item2 && (arcsectors.Item2 >= 270 * (Math.PI / 180)))
                         {
 
                             //passing through 0 polar
-                            if (i >= 0 &&  i <=arcsectors.Item1)
+                            if (i >= 0 && i <= arcsectors.Item1)
                             {
                                 oneSlicePointList.Add(circleTup);
 
                             }
-                            else if (i<= 359 * (Math.PI/180) && i>= arcsectors.Item2)
+                            else if (i <= 359 * (Math.PI / 180) && i >= arcsectors.Item2)
                             {
                                 oneSlicePointList.Add(circleTup);
 
@@ -1869,7 +1935,7 @@ namespace PlanChecks
             List<Point3D> pointsToBeRotated = new List<Point3D>();
             //extend the circle to a cylinder, only go ~38cm north and south (about the size of the gantry head)
             //iterate every 5mm
-            for (int i = 0; i <= 388; i+=4)
+            for (int i = 0; i <= 388; i += 4)
             {
                 foreach (var tup in oneSlicePointList)
                 {
@@ -1914,7 +1980,7 @@ namespace PlanChecks
                         AllPoints.Add(PosPointAsTup);
                         AllPoints.Add(NegPointAsTup);
                     }
-                    
+
 
                 }
 
@@ -1943,23 +2009,24 @@ namespace PlanChecks
 
             double x;
             double y;
-            
+
 
             Vector3 circleNorm = new Vector3(0, 0, 1);
 
 
             Vector3 isoVect3 = new Vector3((float)isocenter.x, (float)isocenter.y, (float)isocenter.z);
 
-            List<Tuple<Point3D, string>> resultingPoints = new List<Tuple<Point3D,string>>();
+            List<Tuple<Point3D, string>> resultingPoints = new List<Tuple<Point3D, string>>();
 
             foreach (var beam in planBeams)
             {
                 List<Vector3> circlePoints = new List<Vector3>();
 
-            
-                for (double i = 0; i < Math.PI*2; i+= (Math.PI/75))
+                //points on the circumference
+                for (double i = 0; i < Math.PI * 2; i += (Math.PI / 75))
                 {
-                    for (int k = 88; k <= 388; k+=100)
+                    //circle size
+                    for (double k = 0; k <= 380; k += 63.3)
                     {
                         y = k * Math.Sin(i);
 
@@ -1978,10 +2045,10 @@ namespace PlanChecks
                 VVector endingSource = beam.GetSourceLocation(beam.ControlPoints.Last().GantryAngle); ;
 
 
-             
 
-                Vector3 isoToStart = new Vector3((float)(startingSource.x - isocenter.x), (float)(startingSource.y - isocenter.y), (float)(startingSource.z - isocenter.z) );
-                Vector3 isoToEnd = new Vector3((float)(endingSource.x - isocenter.x), (float)(endingSource.y - isocenter.y), (float)(endingSource.z - isocenter.z) );
+
+                Vector3 isoToStart = new Vector3((float)(startingSource.x - isocenter.x), (float)(startingSource.y - isocenter.y), (float)(startingSource.z - isocenter.z));
+                Vector3 isoToEnd = new Vector3((float)(endingSource.x - isocenter.x), (float)(endingSource.y - isocenter.y), (float)(endingSource.z - isocenter.z));
 
                 Vector3 rotationAxisStart = Vector3.Cross(circleNorm, isoToStart);
                 Vector3 rotationAxisEnd = Vector3.Cross(circleNorm, isoToEnd);
@@ -1990,7 +2057,7 @@ namespace PlanChecks
                 float rotationAngle1 = (float)Math.Acos(Vector3.Dot(circleNorm, Vector3.Normalize(isoToStart)));
                 float rotationAngle2 = (float)Math.Acos(Vector3.Dot(circleNorm, Vector3.Normalize(isoToEnd)));
 
-      
+
                 rotationAxisStart = Vector3.Normalize(rotationAxisStart);
                 rotationAxisEnd = Vector3.Normalize(rotationAxisEnd);
 
@@ -1999,12 +2066,12 @@ namespace PlanChecks
 
                 foreach (var point in circlePoints)
                 {
-                    
+
                     var pointStart = Vector3.Transform(point, rotationMatrix1);
                     var pointEnd = Vector3.Transform(point, rotationMatrix2);
 
-              
-                    var pointStartRes = pointStart + isoVect3 + Vector3.Normalize(isoToStart)*380;
+
+                    var pointStartRes = pointStart + isoVect3 + Vector3.Normalize(isoToStart) * 380;
                     var pointEndRes = pointEnd + isoVect3 + Vector3.Normalize(isoToEnd) * 380;
 
                     Point3D startPointResult = new Point3D(pointStartRes.X, pointStartRes.Y, pointStartRes.Z);
@@ -2022,7 +2089,7 @@ namespace PlanChecks
 
 
             }
-           
+
 
             return resultingPoints;
 
@@ -2112,13 +2179,13 @@ namespace PlanChecks
 
             //Create x-z plane of points
             //add margin value on both sides to account for actual applicator size
-            for (double x = - (MarginValue*10)/2; x <= (MarginValue * 10) / 2; x += 10)
+            for (double x = -(MarginValue * 10) / 2; x <= (MarginValue * 10) / 2; x += 10)
             {
                 for (double z = -(MarginValue * 10) / 2; z <= (MarginValue * 10) / 2; z += 10)
                 {
                     Vector3 point = new Vector3((float)x, 0, (float)z);
                     Vector3 rotatedVector = Vector3.Transform(point, rotMatrix);
-                    
+
 
                     VVector point3D = new VVector(rotatedVector.X, rotatedVector.Y, rotatedVector.Z);
                     VVector addedPoint = bottomOfCone + point3D;
@@ -2140,7 +2207,7 @@ namespace PlanChecks
 
         public static List<Tuple<Point3D, string>> CreateStaticPlane(VVector isocenter, VMS.TPS.Common.Model.API.Image image, Beam beam)
         {
-            
+
             List<Point3D> AllPoints = new List<Point3D>();
             List<Tuple<Point3D, string>> AllPointsTranslated = new List<Tuple<Point3D, string>>();
 
@@ -2169,8 +2236,8 @@ namespace PlanChecks
 
 
             //Create x-z plane of points
-       
-            for (double x = -coneSize ; x <= coneSize; x += 10)
+
+            for (double x = -coneSize; x <= coneSize; x += 10)
             {
                 for (double z = -coneSize; z <= coneSize; z += 10)
                 {
@@ -2206,7 +2273,7 @@ namespace PlanChecks
         /// <returns>a tuple containing the arc start, end, and gantry direction</returns>
         public static Tuple<double, double, GantryDirection> GetArcSectors(Beam beam)
         {
-            
+
             var FirstGantryAngle = beam.ControlPoints.First().GantryAngle;
             var LastGantryAngle = beam.ControlPoints.Last().GantryAngle;
 
@@ -2231,7 +2298,7 @@ namespace PlanChecks
         public static double ConvertGantryAngleToPolar(double gantryAngle)
         {
             double polarAngle;
-            if (gantryAngle <=90)
+            if (gantryAngle <= 90)
             {
 
                 polarAngle = Math.Abs(90 - gantryAngle);
@@ -2244,6 +2311,9 @@ namespace PlanChecks
             return polarAngle;
         }
 
+
+        
+
         /// <summary>
         /// Checks distance between points on the body and points on the mesh.
         /// </summary>
@@ -2251,12 +2321,11 @@ namespace PlanChecks
         /// <param name="cylinderMeshPositions"></param>
         /// <param name="isocenter"></param>
         /// <returns>The first point under 2cm distance or the shortest distance it finds after comparing all the points.</returns>
-        public static Tuple<Point3D, Point3D, double> ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
+        public static void ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
         {
-            Point3D returnPoint1 = new Point3D();
-            Point3D returnPoint2 = new Point3D();
+
             double shortestDistance = 2000000;
-            int i = 0;
+
 
             //only use body points which are in the neighborhood of the iso in the z direction
             var zList = cylinderMeshPositions.Select(c=> c.Item1).ToList().Select(c => c.Z).ToList();
@@ -2286,49 +2355,56 @@ namespace PlanChecks
 
             }
 
+            //arrange mesh points into array of arrays of doubles
+            var OnlyMeshPoints = cylinderMeshPositions.Select(c=> c.Item1).ToList();
 
-            //group the cylinder positions together with cylinder positions? to prevent the farthest ones away to have to compare
-            var groupedCylinderMeshLists = cylinderMeshPositions.GroupBy(c => c.Item1.Z).ToList();
-            var groupedNearbyBodyPositionsLists = nearbyBodyPositions.GroupBy(c => c.Z).ToList();
 
-            //compare the body and mesh points in groups to save time
-            //Should prevent redundant distance checks
-            List<double> bodyZList = new List<double>(); 
-            foreach (var groupCylinder in groupedCylinderMeshLists)
+            //stopwatch for optimizing time
+            //Stopwatch stopWatch = new Stopwatch();
+            //stopWatch.Start();
+
+
+            //create the kdtree
+            KdTree.Math.DoubleMath doubleMath = new KdTree.Math.DoubleMath();
+            var tree = new KdTree.KdTree<double, int>(3, doubleMath);
+
+            //add the points from the gantry mesh to the tree
+            foreach (var point in OnlyMeshPoints)
             {
-                foreach (var groupBody in groupedNearbyBodyPositionsLists)
+                tree.Add(new double[] { point.X, point.Y, point.Z }, 1);
+            }
+
+            //evaluate the body points vs the closest mesh point using the tree
+            List<double> distList = new List<double>();
+            foreach (var point in nearbyBodyPositions)
+            {
+                var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
+
+
+                double[] nearPoint = nearestNeighbor[0].Point;
+
+                double distance = (Math.Sqrt(((nearPoint[0] - point.X)* (nearPoint[0] - point.X)) + ((nearPoint[1] - point.Y)*(nearPoint[1] - point.Y))
+                                        + ((nearPoint[2] - point.Z)* (nearPoint[2] - point.Z)))) / 10;
+                if (distance < shortestDistance)
                 {
-                    if (Math.Abs(groupCylinder.Key - groupBody.Key) <= 3  && (bodyZList.Contains(groupBody.Key)==false))
-                    {
-
-                        foreach (Point3D point1 in groupBody)
-                        {
-                            foreach (Point3D point2 in groupCylinder.Select(c=> c.Item1))
-                            {
-                                if (shortestDistance >= 0.3)
-                                {
-                                    i++;
-                                    double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
-                                        + (Math.Pow((point2.Z - point1.Z), 2)))) / 10;
-                                   
-                                    if (distance < shortestDistance)
-                                    {
-                                        shortestDistance = distance;
-                                        returnPoint1 = point1;
-                                        returnPoint2 = point2;
-                                    }
-                                }
-                                
-                            }
-                        }
-
-
-                        bodyZList.Add(groupBody.Key);
-                    }
+                    shortestDistance = distance;
+                    distList.Add(distance);
 
                 }
 
+
             }
+
+            //stop the timer and display time to make and test points
+            //stopWatch.Stop();
+            //MessageBox.Show(stopWatch.Elapsed.TotalSeconds.ToString() + "   total seconds elapsed");
+
+
+            //get the smallest distance between the mesh and body and assign it to your global variable to display in UI
+            distList.Sort();
+            shortestDistanceGlobal = distList.FirstOrDefault();
+
+
 
             //define everynthmesh so you can shuffle the points with rng
             List<Tuple<Point3D, string>> every10thMesh1 = cylinderMeshPositions;
@@ -2351,70 +2427,20 @@ namespace PlanChecks
             //get every nth point from the body mesh
             //saves time by not plotting every point
             List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).Distinct().ToList();
-            //assign value to global variable to use outside scope
-            bodyMeshGlobal = every10thBody;
+            //assign value to global variable to use outside scope when making the collision check model
+            bodyMeshGlobalDisplay = every10thBody;
             List<Tuple<Point3D, string>> every10thMesh = every10thMesh1.Where((item, index) => (index + 1) % 1 == 0).Distinct().ToList();
             //assign value to global variable to use outside scope
-            arcMeshGlobal = every10thMesh;
+            arcMeshGlobalDisplay = every10thMesh;
 
+
+        }
+
+        public static void CreateVisualModel(List<Tuple<Point3D, string>>  every10thMesh, VVector isocenter, List<Point3D> every10thBody, PlanSetup plan)
+        {
             //instantiate the model3D class we will add to the viewPort of Helix3D
             ModelVisual3D modelVisual3D = new ModelVisual3D();
 
-
-            ////add the points to a Helix3D model
-            //PointsVisual3D pointsVisual3D = new PointsVisual3D()
-            //{
-            //    Color = Colors.Blue,
-            //    Size = 2,
-            //    Points = new Point3DCollection(every10thBody)
-
-
-            //};
-
-
-            //globalModelVisual3D = modelVisual3D;
-            ////adds the body points to 3D view
-            //modelVisual3D.Children.Add(pointsVisual3D);
-
-
-
-            ////for showing the isocenter
-            //var iso1 = new Point3D(isocenter.x, isocenter.y, isocenter.z);
-            //var isoList1 = new List<Point3D>() { iso1};
-            //PointsVisual3D pointsVisual3Diso = new PointsVisual3D()
-            //{
-            //    Color = Colors.Yellow,
-            //    Size = 10,
-            //    Points = new Point3DCollection(isoList1)
-
-            //};
-            ////ads iso to view as a yellow block
-            //modelVisual3D.Children.Add(pointsVisual3Diso);
-
-
-            //List<string> checkedBeams = new List<string>();
-            ////only add the points to the cylinder mesh if selected in UI
-            //foreach (var item in checkBoxContainer.Items)
-            //{
-            //    CheckBox checkBox = (CheckBox)item;
-            //    if (checkBox.IsChecked == true)
-            //    {
-            //        checkedBeams.Add((string)checkBox.Content);
-            //    }
-
-            //}
-
-            ////do the same for the cylinder mesh
-            //PointsVisual3D pointsVisual3Dcyl = new PointsVisual3D()
-            //{
-            //    Color = Colors.Green,
-            //    Size = 2,
-            //    Points = new Point3DCollection(every10thMesh.Where(c=> checkedBeams.Contains(c.Item2)).Select(c => c.Item1))
-            //};
-
-            //modelVisual3D.Children.Add(pointsVisual3Dcyl);
-            //viewPort.Children.Clear();
-            //viewPort.Children.Add(modelVisual3D);
 
 
             PlotArcsInCollisionModel(every10thMesh, modelVisual3D, isocenter, every10thBody);
@@ -2478,7 +2504,7 @@ namespace PlanChecks
 
 
 
-            
+
 
             //set the default camera view
             PerspectiveCamera camera = new PerspectiveCamera()
@@ -2487,8 +2513,8 @@ namespace PlanChecks
                 LookDirection = Lookdirection,
                 UpDirection = Updirection,
                 FieldOfView = 10,
-                
-                
+
+
 
 
             };
@@ -2499,11 +2525,15 @@ namespace PlanChecks
             //viewPort.ShowCameraInfo = true;
 
             viewPortGlobal.Camera = camera;
-            
+        }
 
-            Tuple<Point3D, Point3D, double> returnTuple = new Tuple<Point3D, Point3D, double>(returnPoint1, returnPoint2, shortestDistance);
+        public static double ComputeDistance(Point3D point1, Point3D point2)
+        {
+            //take the sqrt and math.pow out?
+            double distance = (Math.Sqrt((Math.Pow((point2.X - point1.X), 2)) + (Math.Pow((point2.Y - point1.Y), 2))
+                                        + (Math.Pow((point2.Z - point1.Z), 2)))) / 10;
 
-            return returnTuple;
+            return distance;
         }
 
 
@@ -2797,7 +2827,7 @@ namespace PlanChecks
         {
             try
             {
-                PlotArcsInCollisionModel(arcMeshGlobal, globalModelVisual3D, context1.PlanSetup.Beams.FirstOrDefault(c=> c.IsSetupField==false).IsocenterPosition, bodyMeshGlobal );
+                PlotArcsInCollisionModel(arcMeshGlobalDisplay, globalModelVisual3D, context1.PlanSetup.Beams.FirstOrDefault(c=> c.IsSetupField==false).IsocenterPosition, bodyMeshGlobalDisplay );
 
             }
             catch (Exception m)
@@ -2805,6 +2835,41 @@ namespace PlanChecks
                 MessageBox.Show(m.Message);
                 
             }
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            //ReportDataGrid.ItemsSource = null;
+           
+
+
+            try
+            {
+                //make the viewport using helix3Dtoolkit for the collision model
+                //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
+                //return the shortest distance
+                CollisionCheck(context1.PlanSetup);
+
+                //take out the empty collision check tuple and replace it with the collision result
+                var removeTuple = OutputList.Where(c=> c.Item1.ToLower().Contains("collision")).FirstOrDefault();
+
+                OutputList.Remove(removeTuple);
+
+                OutputList.Add(new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm", (shortestDistanceGlobal != null) ? Math.Round((double)shortestDistanceGlobal, 2).ToString() +
+                " cm" : null, (shortestDistanceGlobal >= 2) ? ((shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
+
+                
+            }
+            catch (Exception o)
+            {
+                MessageBox.Show("Collision check encountered an error.\n" + o.Message);
+
+            }
+
+            //refresh the grid to display the result
+            ReportDataGrid.Items.Refresh();
+
+
         }
 
 

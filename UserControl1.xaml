@@ -110,6 +110,8 @@
                     
                 </ItemsControl>
 
+                <Button Height="60" BorderBrush="Black" BorderThickness="3" Content="Compute Collision Distance" FontWeight="Bold" Background="#FFCAEDED" Width="175" Click="Button_Click"/>
+
             </StackPanel>
 
 
