@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -55,6 +57,8 @@ namespace PlanChecks
 
         public static DataGrid DataGridGlobal;
 
+        public static PlanSetup plan;
+
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
@@ -86,7 +90,7 @@ namespace PlanChecks
 
             //get plan from ui comboBox
             // PlanSetup plan = context.PlansInScope.Where(c => c.Id == (string)PlanComboBox.SelectedItem).FirstOrDefault();
-            PlanSetup plan = context.PlanSetup;
+            plan = context.PlanSetup;
 
 
 
@@ -1690,7 +1694,7 @@ namespace PlanChecks
 
             //refer to where this global variables are defined above
             //they are assigned just before the output list is generated
-            ShortestDistance(bodyMeshGlobal, arcMeshGlobal, plan.Beams.Where(x => x.IsSetupField == false).First().IsocenterPosition, plan);
+           // ShortestDistance(bodyMeshGlobal, arcMeshGlobal, plan.Beams.Where(x => x.IsSetupField == false).First().IsocenterPosition, plan);
 
 
         }
@@ -2326,125 +2330,125 @@ namespace PlanChecks
         /// <param name="cylinderMeshPositions"></param>
         /// <param name="isocenter"></param>
         /// <returns>The first point under 2cm distance or the shortest distance it finds after comparing all the points.</returns>
-        public static void ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
-        {
+        //public static void ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
+        //{
 
-            double shortestDistance = 2000000;
-
-
-            //only use body points which are in the neighborhood of the iso in the z direction
-            var zList = cylinderMeshPositions.Select(c=> c.Item1).ToList().Select(c => c.Z).ToList();
-            zList.Sort();
-            var zMin = zList.First();
-            var zMax = zList.Last();
-
-            List<Point3D> nearbyBodyPositions = new List<Point3D>();
+        //    double shortestDistance = 2000000;
 
 
-            //find the neaby body points that you want to measure distance from the mesh
-            //use some extra body points if you are comparing e cone (easier to see body this way)
-            if (Math.Abs(zMax-zMin) <= 300)
-            {
-                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax + 100 && c.Z >= zMin - 100).ToList();
+        //    //only use body points which are in the neighborhood of the iso in the z direction
+        //    var zList = cylinderMeshPositions.Select(c=> c.Item1).ToList().Select(c => c.Z).ToList();
+        //    zList.Sort();
+        //    var zMin = zList.First();
+        //    var zMax = zList.Last();
+
+        //    List<Point3D> nearbyBodyPositions = new List<Point3D>();
+
+
+        //    //find the neaby body points that you want to measure distance from the mesh
+        //    //use some extra body points if you are comparing e cone (easier to see body this way)
+        //    if (Math.Abs(zMax-zMin) <= 300)
+        //    {
+        //        nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax + 100 && c.Z >= zMin - 100).ToList();
                
-            }
-            else
-            {
-                nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
+        //    }
+        //    else
+        //    {
+        //        nearbyBodyPositions = bodyMeshPositions.Where(c => c.Z <= zMax && c.Z >= zMin).ToList();
 
-                if (nearbyBodyPositions.Any() == false)
-                {
-                    nearbyBodyPositions = bodyMeshPositions;
-                }
+        //        if (nearbyBodyPositions.Any() == false)
+        //        {
+        //            nearbyBodyPositions = bodyMeshPositions;
+        //        }
                 
 
-            }
+        //    }
 
-            //arrange mesh points into array of arrays of doubles
-            var OnlyMeshPoints = cylinderMeshPositions.Select(c=> c.Item1).ToList();
-
-
-            //stopwatch for optimizing time
-            //Stopwatch stopWatch = new Stopwatch();
-            //stopWatch.Start();
+        //    //arrange mesh points into array of arrays of doubles
+        //    var OnlyMeshPoints = cylinderMeshPositions.Select(c=> c.Item1).ToList();
 
 
-            //create the kdtree
-            KdTree.Math.DoubleMath doubleMath = new KdTree.Math.DoubleMath();
-            var tree = new KdTree.KdTree<double, int>(3, doubleMath);
-
-            //add the points from the gantry mesh to the tree
-            foreach (var point in OnlyMeshPoints)
-            {
-                tree.Add(new double[] { point.X, point.Y, point.Z }, 1);
-            }
-
-            TotalTreePoints = nearbyBodyPositions.Count;
-            //evaluate the body points vs the closest mesh point using the tree
-            currentpoint = 0;
-            List<double> distList = new List<double>();
-            foreach (var point in nearbyBodyPositions)
-            {
+        //    //stopwatch for optimizing time
+        //    //Stopwatch stopWatch = new Stopwatch();
+        //    //stopWatch.Start();
 
 
+        //    //create the kdtree
+        //    KdTree.Math.DoubleMath doubleMath = new KdTree.Math.DoubleMath();
+        //    var tree = new KdTree.KdTree<double, int>(3, doubleMath);
 
-                var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
+        //    //add the points from the gantry mesh to the tree
+        //    foreach (var point in OnlyMeshPoints)
+        //    {
+        //        tree.Add(new double[] { point.X, point.Y, point.Z }, 1);
+        //    }
+
+        //    var TotalTreePoints = nearbyBodyPositions.Count;
+        //    //evaluate the body points vs the closest mesh point using the tree
+        //    var currentpoint = 0;
+        //    List<double> distList = new List<double>();
+        //    foreach (var point in nearbyBodyPositions)
+        //    {
 
 
-                double[] nearPoint = nearestNeighbor[0].Point;
 
-                double distance = (Math.Sqrt(((nearPoint[0] - point.X)* (nearPoint[0] - point.X)) + ((nearPoint[1] - point.Y)*(nearPoint[1] - point.Y))
-                                        + ((nearPoint[2] - point.Z)* (nearPoint[2] - point.Z)))) / 10;
-                if (distance < shortestDistance)
-                {
-                    shortestDistance = distance;
-                    distList.Add(distance);
+        //        var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
 
-                }
+
+        //        double[] nearPoint = nearestNeighbor[0].Point;
+
+        //        double distance = (Math.Sqrt(((nearPoint[0] - point.X)* (nearPoint[0] - point.X)) + ((nearPoint[1] - point.Y)*(nearPoint[1] - point.Y))
+        //                                + ((nearPoint[2] - point.Z)* (nearPoint[2] - point.Z)))) / 10;
+        //        if (distance < shortestDistance)
+        //        {
+        //            shortestDistance = distance;
+        //            distList.Add(distance);
+
+        //        }
                 
-                currentpoint++;
-            }
+        //        currentpoint++;
+        //    }
 
-            //stop the timer and display time to make and test points
-            //stopWatch.Stop();
-            //MessageBox.Show(stopWatch.Elapsed.TotalSeconds.ToString() + "   total seconds elapsed");
-
-
-            //get the smallest distance between the mesh and body and assign it to your global variable to display in UI
-            distList.Sort();
-            shortestDistanceGlobal = distList.FirstOrDefault();
+        //    //stop the timer and display time to make and test points
+        //    //stopWatch.Stop();
+        //    //MessageBox.Show(stopWatch.Elapsed.TotalSeconds.ToString() + "   total seconds elapsed");
 
 
+        //    //get the smallest distance between the mesh and body and assign it to your global variable to display in UI
+        //    distList.Sort();
+        //    shortestDistanceGlobal = distList.FirstOrDefault();
 
-            //define everynthmesh so you can shuffle the points with rng
-            List<Tuple<Point3D, string>> every10thMesh1 = cylinderMeshPositions;
-            //shuffle the points in the list so you can use every 3rd without introducing aliasing
-            Random rng = new Random();
-            int n = every10thMesh1.Count;
-            while (n > 1)
-            {
-                n--;
-                int k = rng.Next(n + 1);
-                var value = every10thMesh1[k];
-                every10thMesh1[k] = every10thMesh1[n];
-                every10thMesh1[n] = value;
 
-            }
+
+        //    //define everynthmesh so you can shuffle the points with rng
+        //    List<Tuple<Point3D, string>> every10thMesh1 = cylinderMeshPositions;
+        //    //shuffle the points in the list so you can use every 3rd without introducing aliasing
+        //    Random rng = new Random();
+        //    int n = every10thMesh1.Count;
+        //    while (n > 1)
+        //    {
+        //        n--;
+        //        int k = rng.Next(n + 1);
+        //        var value = every10thMesh1[k];
+        //        every10thMesh1[k] = every10thMesh1[n];
+        //        every10thMesh1[n] = value;
+
+        //    }
 
 
             
 
-            //get every nth point from the body mesh
-            //saves time by not plotting every point
-            List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).Distinct().ToList();
-            //assign value to global variable to use outside scope when making the collision check model
-            bodyMeshGlobalDisplay = every10thBody;
-            List<Tuple<Point3D, string>> every10thMesh = every10thMesh1.Where((item, index) => (index + 1) % 1 == 0).Distinct().ToList();
-            //assign value to global variable to use outside scope
-            arcMeshGlobalDisplay = every10thMesh;
+        //    //get every nth point from the body mesh
+        //    //saves time by not plotting every point
+        //    List<Point3D> every10thBody = nearbyBodyPositions.Where((item, index) => (index + 1) % 25 == 0).Distinct().ToList();
+        //    //assign value to global variable to use outside scope when making the collision check model
+        //    bodyMeshGlobalDisplay = every10thBody;
+        //    List<Tuple<Point3D, string>> every10thMesh = every10thMesh1.Where((item, index) => (index + 1) % 1 == 0).Distinct().ToList();
+        //    //assign value to global variable to use outside scope
+        //    arcMeshGlobalDisplay = every10thMesh;
 
 
-        }
+        //}
 
         public static void CreateVisualModel(List<Tuple<Point3D, string>>  every10thMesh, VVector isocenter, List<Point3D> every10thBody, PlanSetup plan)
         {
@@ -2847,38 +2851,42 @@ namespace PlanChecks
             }
         }
 
+
+
         //button action which will trigger the collision check
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             //instantiate your ProgressBar 
             ProgressBar progressBar = new ProgressBar();
-            progressBar.Execute();
-           
-            
-
-
-            try
+            if (progressBar.Execute())
             {
-                //make the viewport using helix3Dtoolkit for the collision model
-                //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
-                //return the shortest distance
-                CollisionCheck(context1.PlanSetup);
-
-                //take out the empty collision check tuple and replace it with the collision result
-                var removeTuple = OutputList.Where(c => c.Item1.ToLower().Contains("collision")).FirstOrDefault();
-
-                OutputList.Remove(removeTuple);
-
-                OutputList.Add(new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm", (shortestDistanceGlobal != null) ? Math.Round((double)shortestDistanceGlobal, 2).ToString() +
-                " cm" : null, (shortestDistanceGlobal >= 2) ? ((shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
-
-
+                //MessageBox.Show("problem!");
             }
-            catch (Exception o)
-            {
-                MessageBox.Show("Collision check encountered an error.\n" + o.Message);
+           // else MessageBox.Show("Finished");
 
-            }
+
+
+            //try
+            //{
+            //    //make the viewport using helix3Dtoolkit for the collision model
+            //    //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
+            //    //return the shortest distance
+            //    CollisionCheck(context1.PlanSetup);
+
+            //    //take out the empty collision check tuple and replace it with the collision result
+            //var removeTuple = OutputList.Where(c => c.Item1.ToLower().Contains("collision")).FirstOrDefault();
+
+            //OutputList.Remove(removeTuple);
+
+            //OutputList.Add(new Tuple<string, string, string, bool?>("Collision2", "No Collision, closest approach >=2cm", (shortestDistanceGlobal != null) ? Math.Round((double)shortestDistanceGlobal, 2).ToString() +
+            //" cm" : null, (shortestDistanceGlobal >= 2) ? ((shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
+
+            //}
+            //catch (Exception o)
+            //{
+            //    MessageBox.Show("Collision check encountered an error.\n" + o.Message);
+
+            //}
 
             //refresh the grid to display the result
             ReportDataGrid.Items.Refresh();
