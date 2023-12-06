@@ -28,10 +28,12 @@ namespace PlanChecks
     /// </summary>
     public partial class UserControl1 : UserControl
     {
-        public List<Tuple<string, string, string, bool?>> OutputList = new List<Tuple<string, string, string, bool?>>();
+        public static List<Tuple<string, string, string, bool?>> OutputList = new List<Tuple<string, string, string, bool?>>();
         public List<Tuple<string, string, string, bool?>> OutputListRX = new List<Tuple<string, string, string, bool?>>();
 
-        ScriptContext context1;
+        public static ScriptContext context1;
+
+        
 
         public static ItemsControl checkBoxContainerGlobal;
 
@@ -51,10 +53,13 @@ namespace PlanChecks
 
         public static int plotCounter = 0;
 
+        public static DataGrid DataGridGlobal;
+
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
 
+            DataGridGlobal = ReportDataGrid;
             //context1 = context;
             viewPortGlobal = viewport;
             //ComboBox PlanComboBox = this.PlanComboBox;
@@ -2374,10 +2379,15 @@ namespace PlanChecks
                 tree.Add(new double[] { point.X, point.Y, point.Z }, 1);
             }
 
+            TotalTreePoints = nearbyBodyPositions.Count;
             //evaluate the body points vs the closest mesh point using the tree
+            currentpoint = 0;
             List<double> distList = new List<double>();
             foreach (var point in nearbyBodyPositions)
             {
+
+
+
                 var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
 
 
@@ -2391,8 +2401,8 @@ namespace PlanChecks
                     distList.Add(distance);
 
                 }
-
-
+                
+                currentpoint++;
             }
 
             //stop the timer and display time to make and test points
@@ -2837,10 +2847,14 @@ namespace PlanChecks
             }
         }
 
+        //button action which will trigger the collision check
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            //ReportDataGrid.ItemsSource = null;
+            //instantiate your ProgressBar 
+            ProgressBar progressBar = new ProgressBar();
+            progressBar.Execute();
            
+            
 
 
             try
@@ -2851,14 +2865,14 @@ namespace PlanChecks
                 CollisionCheck(context1.PlanSetup);
 
                 //take out the empty collision check tuple and replace it with the collision result
-                var removeTuple = OutputList.Where(c=> c.Item1.ToLower().Contains("collision")).FirstOrDefault();
+                var removeTuple = OutputList.Where(c => c.Item1.ToLower().Contains("collision")).FirstOrDefault();
 
                 OutputList.Remove(removeTuple);
 
                 OutputList.Add(new Tuple<string, string, string, bool?>("Collision", "No Collision, closest approach >=2cm", (shortestDistanceGlobal != null) ? Math.Round((double)shortestDistanceGlobal, 2).ToString() +
                 " cm" : null, (shortestDistanceGlobal >= 2) ? ((shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
 
-                
+
             }
             catch (Exception o)
             {
