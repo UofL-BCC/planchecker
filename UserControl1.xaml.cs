@@ -2860,33 +2860,9 @@ namespace PlanChecks
             ProgressBar progressBar = new ProgressBar();
             if (progressBar.Execute())
             {
-                //MessageBox.Show("problem!");
+
             }
-           // else MessageBox.Show("Finished");
-
-
-
-            //try
-            //{
-            //    //make the viewport using helix3Dtoolkit for the collision model
-            //    //call the collision model method and calculate the shortes distance between the gantry cylinder and the body/couches/baseplate
-            //    //return the shortest distance
-            //    CollisionCheck(context1.PlanSetup);
-
-            //    //take out the empty collision check tuple and replace it with the collision result
-            //var removeTuple = OutputList.Where(c => c.Item1.ToLower().Contains("collision")).FirstOrDefault();
-
-            //OutputList.Remove(removeTuple);
-
-            //OutputList.Add(new Tuple<string, string, string, bool?>("Collision2", "No Collision, closest approach >=2cm", (shortestDistanceGlobal != null) ? Math.Round((double)shortestDistanceGlobal, 2).ToString() +
-            //" cm" : null, (shortestDistanceGlobal >= 2) ? ((shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
-
-            //}
-            //catch (Exception o)
-            //{
-            //    MessageBox.Show("Collision check encountered an error.\n" + o.Message);
-
-            //}
+           
 
             //refresh the grid to display the result
             ReportDataGrid.Items.Refresh();
