@@ -225,12 +225,16 @@ namespace PlanChecks
                 UserControl1.DataGridGlobal.Items.Refresh();
             }
 
-            //close the progress bar when it finishes
-            progressWindow.Dispatcher.Invoke(() =>
+            if (Continue)
             {
-                progressWindow.Close();
+                progressWindow.Dispatcher.Invoke(() =>
+                {
+                    progressWindow.Close();
 
-            });
+                });
+            }
+            //close the progress bar when it finishes
+            
 
             return true;
         }
