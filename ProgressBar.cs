@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Media3D;
 using SimpleProgressWindow;
 using VMS.TPS.Common.Model.API;
@@ -16,8 +17,16 @@ namespace PlanChecks
     {
         public ProgressBar()
         {
-
+            SetCloseOnFinish(true);
+            
+            
         }
+
+        public static bool Continue;
+
+        public static Window progressWindowGlobal;
+
+        public static System.Diagnostics.ProcessThread globalProcessThread;
 
         public volatile bool Done = false;
 
@@ -25,10 +34,15 @@ namespace PlanChecks
 
         public static double currentpoint;
 
+       
+
+
+
+       
         public override bool Run()
         {
 
-
+            
             ShortestDistance(UserControl1.bodyMeshGlobal, UserControl1.arcMeshGlobal, UserControl1.plan.Beams.Where(x => x.IsSetupField == false).First().IsocenterPosition, UserControl1.plan);
 
 
@@ -37,6 +51,8 @@ namespace PlanChecks
 
         public bool ShortestDistance(List<Point3D> bodyMeshPositions, List<Tuple<Point3D, string>> cylinderMeshPositions, VVector isocenter, PlanSetup plan)
         {
+            Continue = true;
+
             SetCloseOnFinish(true, 1);
 
             
@@ -76,11 +92,6 @@ namespace PlanChecks
             var OnlyMeshPoints = cylinderMeshPositions.Select(c => c.Item1).ToList();
 
 
-            //stopwatch for optimizing time
-            //Stopwatch stopWatch = new Stopwatch();
-            //stopWatch.Start();
-
-
             //create the kdtree
             KdTree.Math.DoubleMath doubleMath = new KdTree.Math.DoubleMath();
             var tree = new KdTree.KdTree<double, int>(3, doubleMath);
@@ -95,31 +106,69 @@ namespace PlanChecks
             //evaluate the body points vs the closest mesh point using the tree
             double currentpoint = 0;
             List<double> distList = new List<double>();
+
+
+            //we need to find the progress window from the thread process (dont have the window object available from progressbar class)
+            //get the current process
+            var process = System.Diagnostics.Process.GetCurrentProcess();
+            //find the handle of the window on the progress window process
+            var progressWindowHandle = process.MainWindowHandle;
+            HwndSource hwndSource = HwndSource.FromHwnd(progressWindowHandle);
+            //find the window object from the handle
+            Window progressWindow = hwndSource.RootVisual as Window;
+
+
+
+            double userControlWindowRight = UserControl1.userControlWindowGlobal.Left + UserControl1.userControlWindowGlobal.Width;
+
+            //use the dispatcher of the progress window UI to move the window
+            //need to use the dispatcher because it controls the UI form the thread it is being run on, otherwise it throws
+            progressWindow.Dispatcher.Invoke( () =>
+            {
+                progressWindow.Left = userControlWindowRight - progressWindow.Width - 60;
+               
+            });
+
+            
+            //make an event for when you close the window
+            //use the event to abort the shortest distance check if the window is closed
+            progressWindow.Closed += ProgressWindow_Closed;
+            
+
+
+
             foreach (var point in nearbyBodyPositions)
             {
-
-
-
-                var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
-
-
-                double[] nearPoint = nearestNeighbor[0].Point;
-
-                double distance = (Math.Sqrt(((nearPoint[0] - point.X) * (nearPoint[0] - point.X)) + ((nearPoint[1] - point.Y) * (nearPoint[1] - point.Y))
-                                        + ((nearPoint[2] - point.Z) * (nearPoint[2] - point.Z)))) / 10;
-                if (distance < shortestDistance)
+                //checks if window was closed or not
+                if (Continue)
                 {
-                    shortestDistance = distance;
-                    distList.Add(distance);
 
-                }
+                    var nearestNeighbor = tree.GetNearestNeighbours(new double[] { point.X, point.Y, point.Z }, 1);
 
-                currentpoint++;
-                if (currentpoint % 50 == 0)
-                {
-                    ProvideUIUpdate((int)Math.Round((currentpoint / TotalTreePoints) * 100), $"{currentpoint}");
+
+                    double[] nearPoint = nearestNeighbor[0].Point;
+
+                    double distance = (Math.Sqrt(((nearPoint[0] - point.X) * (nearPoint[0] - point.X)) + ((nearPoint[1] - point.Y) * (nearPoint[1] - point.Y))
+                                            + ((nearPoint[2] - point.Z) * (nearPoint[2] - point.Z)))) / 10;
+                    if (distance < shortestDistance)
+                    {
+                        shortestDistance = distance;
+                        distList.Add(distance);
+
+                    }
+
+                    currentpoint++;
+                    if (currentpoint % 50 == 0)
+                    {
+                        ProvideUIUpdate((int)Math.Round((currentpoint / TotalTreePoints) * 100), $"{currentpoint}");
+                    }
                 }
             }
+
+
+
+
+
 
             //stop the timer and display time to make and test points
             //stopWatch.Stop();
@@ -162,16 +211,38 @@ namespace PlanChecks
 
             var removeTuple = UserControl1.OutputList.Where(c => c.Item1.ToLower().Contains("collision")).FirstOrDefault();
 
-            UserControl1.OutputList.Remove(removeTuple);
 
-            UserControl1.OutputList.Add(new Tuple<string, string, string, bool?>("Collision2", "No Collision, closest approach >=2cm", (UserControl1.shortestDistanceGlobal != null) ? Math.Round((double)UserControl1.shortestDistanceGlobal, 2).ToString() +
-            " cm" : null, (UserControl1.shortestDistanceGlobal >= 2) ? ((UserControl1.shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
+            //if window was closed dont update PlanCheck Data
+            if (Continue)
+            {
 
-            UserControl1.DataGridGlobal.Items.Refresh();
+
+                UserControl1.OutputList.Remove(removeTuple);
+
+                UserControl1.OutputList.Add(new Tuple<string, string, string, bool?>("Collision2", "No Collision, closest approach >=2cm", (UserControl1.shortestDistanceGlobal != null) ? Math.Round((double)UserControl1.shortestDistanceGlobal, 2).ToString() +
+                " cm" : null, (UserControl1.shortestDistanceGlobal >= 2) ? ((UserControl1.shortestDistanceGlobal > 4) ? true : (bool?)null) : false));
+
+                UserControl1.DataGridGlobal.Items.Refresh();
+            }
+
+            //close the progress bar when it finishes
+            progressWindow.Dispatcher.Invoke(() =>
+            {
+                progressWindow.Close();
+
+            });
 
             return true;
         }
 
+        
 
+        private void ProgressWindow_Closed(object sender, EventArgs e)
+        {
+            //trigger variable change to abort the shortest distance check
+            Continue = false;
+            return;
+
+        }
     }
 }

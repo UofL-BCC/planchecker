@@ -35,7 +35,7 @@ namespace PlanChecks
 
         public static ScriptContext context1;
 
-        
+        public static Window userControlWindowGlobal;
 
         public static ItemsControl checkBoxContainerGlobal;
 
@@ -62,6 +62,12 @@ namespace PlanChecks
         public UserControl1(ScriptContext context, Window window1)
         {
             InitializeComponent();
+
+            //clear the ouput list because it is remembering the items from last time you opened the script????
+            OutputList.Clear();
+
+            userControlWindowGlobal = window1;
+
 
             DataGridGlobal = ReportDataGrid;
             //context1 = context;
@@ -475,7 +481,6 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Objective Priorities", "<999", wrongObjectives, (wrongObjectives=="<999")? true : false),
                 new Tuple<string, string, string, bool?>("Couch Added", expectedCouches, findSupport(plan), (expectedCouches == findSupport(plan)) ? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Vertex Beams", (vertexBeams == "")? "no vertex beams": vertexBeams , (sketchVertexBeams == "")? "" : "check for clearence \n" + sketchVertexBeams, (sketchVertexBeams == "")? true: false),
-                /*in the following line, there is a compact if else statement within a compact if else statement     */
                 new Tuple<string, string, string, bool?>("Collision", "Collision not computed", null , null)
 
 
@@ -569,6 +574,7 @@ namespace PlanChecks
             OutputListRX.AddRange(OutputList2);
 
 
+
             //code for databinding the list of plan check items to the data grid
             this.ReportDataGrid.ItemsSource = OutputList;
             this.ReportDataGrid_Rx.ItemsSource = OutputListRX;
@@ -592,9 +598,34 @@ namespace PlanChecks
             //ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 4;
             ReportDataGrid_Rx.ColumnWidth = HorizontalStackPanel.Width / 6;
 
+            //programmatically start the collision check on UI loading
+            this.Loaded += UserControl1_Loaded;
 
 
 
+
+
+        }
+
+
+
+        private void UserControl1_Loaded(object sender, RoutedEventArgs e)
+        {
+            //add a slight delay before we programmatically click the progress bar button, otherwise the UI wont have time to load before we start the other thread
+
+            DispatcherTimer dispatcherTimer = new DispatcherTimer();
+            dispatcherTimer.Interval = TimeSpan.FromMilliseconds(50);
+
+            dispatcherTimer.Tick += (s, args) =>
+            {
+                dispatcherTimer.Stop();
+
+                Button_Click(null, null);
+            };
+
+            dispatcherTimer.Start();
+
+            
 
         }
 
@@ -2858,11 +2889,15 @@ namespace PlanChecks
         {
             //instantiate your ProgressBar 
             ProgressBar progressBar = new ProgressBar();
+
+
+           
+
             if (progressBar.Execute())
             {
 
             }
-           
+
 
             //refresh the grid to display the result
             ReportDataGrid.Items.Refresh();

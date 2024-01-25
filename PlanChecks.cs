@@ -38,6 +38,8 @@ namespace VMS.TPS
             window.VerticalAlignment = VerticalAlignment.Top;
             window.HorizontalAlignment = HorizontalAlignment.Left;
 
+       
+
 
         }
   }
