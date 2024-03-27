@@ -114,6 +114,7 @@ namespace PlanChecks
             //find the handle of the window on the progress window process
             var progressWindowHandle = process.MainWindowHandle;
             HwndSource hwndSource = HwndSource.FromHwnd(progressWindowHandle);
+
             //find the window object from the handle
             Window progressWindow = hwndSource.RootVisual as Window;
 

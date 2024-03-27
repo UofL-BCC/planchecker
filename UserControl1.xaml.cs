@@ -427,9 +427,16 @@ namespace PlanChecks
             string checkWedgeMU = "No Dose";
             if (!noDose) { checkWedgeMU = checkEDWmin(plan); }
 
+
+
+
             //get Vertex beams and check for sketch gantry angles
             string vertexBeams = VertexBeamsToString(plan);
             string sketchVertexBeams = CheckVertexBeam(plan);
+
+
+            //verify beam doserate is maximum doserate for energy
+            string beamNoMaxDoserate = CheckDoseRate(plan);
 
 
 
@@ -462,6 +469,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Same Iso", "All Fields", isoname, sameiso),
                 new Tuple<string, string, string, bool?>("Same Tech", "All Fields", techname, sametech),
                 new Tuple<string, string, string, bool?>("Same Dose Rate", "All Fields", ratename, samerate),
+                new Tuple<string, string, string, bool?>("Dose Rate is Maximum", "All Fields", beamNoMaxDoserate,  (beamNoMaxDoserate == "All Fields")? true: false),
                 new Tuple<string, string, string, bool?>("DRRs attached", "All Fields", findDRR(plan).ToString(), findDRR(plan)),
                 new Tuple<string, string, string, bool?>("Tol Table Set", "All Fields", toleranceTables, (toleranceTables != "placeholder" && toleranceTables!= "Mixed Tables" && toleranceTables!= "Error" && toleranceTables!="Missing for some beams")? true:  false),
                 new Tuple<string, string, string, bool?>("Image and Tx Orientation", "Same", ((image.ImagingOrientation== plan.TreatmentOrientation) ? plan.TreatmentOrientation.ToString() : "DIFFERENT"), (image.ImagingOrientation== plan.TreatmentOrientation)),
@@ -471,6 +479,8 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
                 new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
+
+
 
                 new Tuple<string, string, string, bool?>("Total Plan MU", "<=4000", totalMUdoub.ToString(),  (totalMUdoub <= 4000)? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Beam Max MU", "<=1200", maxBeamMU.ToString(),  (maxBeamMU<1200)? true : (bool?)null),
@@ -614,7 +624,9 @@ namespace PlanChecks
             //add a slight delay before we programmatically click the progress bar button, otherwise the UI wont have time to load before we start the other thread
 
             DispatcherTimer dispatcherTimer = new DispatcherTimer();
-            dispatcherTimer.Interval = TimeSpan.FromMilliseconds(50);
+
+            //this cant be too long or you try to get thw root window of the progress bar before its opened
+            dispatcherTimer.Interval = TimeSpan.FromMilliseconds(15);
 
             dispatcherTimer.Tick += (s, args) =>
             {
@@ -650,6 +662,70 @@ namespace PlanChecks
             }
 
             return laterality;
+        }
+
+        public static string CheckDoseRate(PlanSetup plan)
+        {
+            Dictionary<string, int> DoseRateDict = new Dictionary<string, int>();
+
+            DoseRateDict.Add("6X", 600);
+            DoseRateDict.Add("6X-FFF", 1400);
+            DoseRateDict.Add("10X", 600);
+            DoseRateDict.Add("10X-FFF", 2400);
+            DoseRateDict.Add("18X", 600);
+            DoseRateDict.Add("6E", 1000);
+            DoseRateDict.Add("9E", 1000);
+            DoseRateDict.Add("12E", 1000);
+            DoseRateDict.Add("16E", 1000);
+            DoseRateDict.Add("20E", 1000);
+
+            bool doserateMatch = true;
+            string beamNoMaxDoserate = "All Fields";
+            int counter = 0;
+            foreach (var beam in plan.Beams.Where(c => c.IsSetupField == false).ToList())
+            {
+
+                if (doserateMatch == true)
+                {
+
+                    bool doesItMatch = (DoseRateDict[beam.EnergyModeDisplayName] == beam.DoseRate) ? true : false;
+
+                    doserateMatch = doesItMatch;
+
+
+                    if (doserateMatch == false)
+                    {
+                        if (counter == 0)
+                        {
+                            beamNoMaxDoserate = "";
+                        }
+                        counter++;
+                        beamNoMaxDoserate += beam.Id + " ";
+                    }
+
+                }
+                else
+                {
+                    bool doesItMatch = (DoseRateDict[beam.EnergyModeDisplayName] == beam.DoseRate) ? true : false;
+
+                    doserateMatch = doesItMatch;
+                    if (doserateMatch == false)
+                    {
+                        beamNoMaxDoserate += beam.Id + " ";
+
+                    }
+                }
+
+            }
+
+            if (counter > 0)
+            {
+                beamNoMaxDoserate += " Not Max Dose Rate";
+            }
+
+
+            return beamNoMaxDoserate;
+
         }
 
 
