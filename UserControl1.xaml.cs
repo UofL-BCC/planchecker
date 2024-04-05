@@ -438,7 +438,51 @@ namespace PlanChecks
             //verify beam doserate is maximum doserate for energy
             string beamNoMaxDoserate = CheckDoseRate(plan);
 
+            //origin is most inf slice, anterior patient R corner
+            //CT FOV is 60cm diameter
+            string infoString = "";
+            infoString += "userOrigin (" + plan.StructureSet.Image.UserOrigin.x.ToString() + "," + plan.StructureSet.Image.UserOrigin.y.ToString() + "," + plan.StructureSet.Image.UserOrigin.z.ToString() + ")\n";
+            infoString += "Origin (" + plan.StructureSet.Image.Origin.x.ToString() + "," + plan.StructureSet.Image.Origin.y.ToString() + "," + plan.StructureSet.Image.Origin.z.ToString() + ")\n";
 
+            //find the x,y circle that bounds the FOV (shrunk 5mm?) 
+            //search the external for any points on that circle (sample the circumference at 5mm?)
+            VVector centerOfCirlce = new VVector(plan.StructureSet.Image.Origin.x + 300, plan.StructureSet.Image.Origin.y + 300, 0);
+
+            infoString += "Center of Circle (" + centerOfCirlce.x.ToString() + " ," + centerOfCirlce.y.ToString() + " )\n";
+
+  
+            var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
+
+            //make the points on the circle
+            List<Point> circlePoints = new List<Point>();
+            for (double i = 0; i < 2*Math.PI; i+= 1*(3.14/180))
+            {
+                double x = 300 * Math.Cos(i);
+                double y = 300 * Math.Sin(i);
+
+                double xOnCircle = centerOfCirlce.x + x;
+                double yOnCircle = centerOfCirlce.y + y;
+
+                circlePoints.Add(new Point(Math.Round(xOnCircle), Math.Round(yOnCircle)));
+
+            }
+
+            //select x and y points from the external that satisfy the equation of the circle
+            //need to do some rounding b/c points wont be exact
+            var bodyPoints = body.MeshGeometry.Positions;
+            var correctPoints = bodyPoints.Where(c => circlePoints.Contains(new Point(Math.Round(c.X), Math.Round(c.Y))) == true);
+
+            MessageBox.Show(correctPoints.Count().ToString());
+
+
+            //add the points to the collision model as yellow?
+            var correctPointList = correctPoints.ToList();
+
+            var corrPointsNoDuplicates = correctPointList.Distinct().ToList();
+
+
+
+            MessageBox.Show(infoString);
 
             shortestDistanceGlobal = null;
 
