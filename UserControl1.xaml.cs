@@ -51,6 +51,8 @@ namespace PlanChecks
 
         public static List<Point3D> bodyMeshGlobal;
 
+        public static List<Point3D> cutoffMeshGlobal;
+
         public static double? shortestDistanceGlobal;
 
         public static int plotCounter = 0;
@@ -440,49 +442,63 @@ namespace PlanChecks
 
             //origin is most inf slice, anterior patient R corner
             //CT FOV is 60cm diameter
-            string infoString = "";
-            infoString += "userOrigin (" + plan.StructureSet.Image.UserOrigin.x.ToString() + "," + plan.StructureSet.Image.UserOrigin.y.ToString() + "," + plan.StructureSet.Image.UserOrigin.z.ToString() + ")\n";
-            infoString += "Origin (" + plan.StructureSet.Image.Origin.x.ToString() + "," + plan.StructureSet.Image.Origin.y.ToString() + "," + plan.StructureSet.Image.Origin.z.ToString() + ")\n";
+            //try to find intersection of Body and CT FOV to check for cutoff
+            ////////////////////////////////////////////////////////////////
+            //string infoString = "";
+            //infoString += "userOrigin (" + plan.StructureSet.Image.UserOrigin.x.ToString() + "," + plan.StructureSet.Image.UserOrigin.y.ToString() + "," + plan.StructureSet.Image.UserOrigin.z.ToString() + ")\n";
+            //infoString += "Origin (" + plan.StructureSet.Image.Origin.x.ToString() + "," + plan.StructureSet.Image.Origin.y.ToString() + "," + plan.StructureSet.Image.Origin.z.ToString() + ")\n";
 
-            //find the x,y circle that bounds the FOV (shrunk 5mm?) 
-            //search the external for any points on that circle (sample the circumference at 5mm?)
-            VVector centerOfCirlce = new VVector(plan.StructureSet.Image.Origin.x + 300, plan.StructureSet.Image.Origin.y + 300, 0);
+            ////find the x,y circle that bounds the FOV (shrunk 5mm?) 
+            ////search the external for any points on that circle (sample the circumference at 5mm?)
+            //VVector centerOfCirlce = new VVector(plan.StructureSet.Image.Origin.x + 300, plan.StructureSet.Image.Origin.y + 300, 0);
 
-            infoString += "Center of Circle (" + centerOfCirlce.x.ToString() + " ," + centerOfCirlce.y.ToString() + " )\n";
+            //infoString += "Center of Circle (" + centerOfCirlce.x.ToString() + " ," + centerOfCirlce.y.ToString() + " )\n";
 
-  
-            var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
 
-            //make the points on the circle
-            List<Point> circlePoints = new List<Point>();
-            for (double i = 0; i < 2*Math.PI; i+= 1*(3.14/180))
+            //var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
+
+            ////make the points on the circle
+            //List<Point> circlePoints = new List<Point>();
+            //for (double i = 0; i < 2*Math.PI; i+= 1*(3.14/180))
+            //{
+            //    double x = 300 * Math.Cos(i);
+            //    double y = 300 * Math.Sin(i);
+
+            //    double xOnCircle = centerOfCirlce.x + x;
+            //    double yOnCircle = centerOfCirlce.y + y;
+
+            //    circlePoints.Add(new Point(Math.Round(xOnCircle), Math.Round(yOnCircle)));
+
+            //}
+
+            ////select x and y points from the external that satisfy the equation of the circle
+            ////need to do some rounding b/c points wont be exact
+            //var bodyPoints = body.MeshGeometry.Positions;
+            //var correctPoints = bodyPoints.Where(c => circlePoints.Contains(new Point(Math.Round(c.X), Math.Round(c.Y))) == true);
+
+            //MessageBox.Show(correctPoints.Count().ToString());
+
+
+            ////add the points to the collision model as yellow?
+            //var correctPointList = correctPoints.ToList();
+
+            //var corrPointsNoDuplicates = correctPointList.Distinct().ToList();
+
+            //cutoffMeshGlobal = corrPointsNoDuplicates;
+            //MessageBox.Show(infoString);
+
+            ///////////////////////////////////////////////////////////////////
+
+            var failMaxFSCheckList = CheckMaxFieldSize(plan);
+            string failBeams = "";
+            if (failMaxFSCheckList.Any())
             {
-                double x = 300 * Math.Cos(i);
-                double y = 300 * Math.Sin(i);
-
-                double xOnCircle = centerOfCirlce.x + x;
-                double yOnCircle = centerOfCirlce.y + y;
-
-                circlePoints.Add(new Point(Math.Round(xOnCircle), Math.Round(yOnCircle)));
-
+                foreach (var beam in failMaxFSCheckList)
+                {
+                    failBeams += beam.Id + ";";
+                }
             }
 
-            //select x and y points from the external that satisfy the equation of the circle
-            //need to do some rounding b/c points wont be exact
-            var bodyPoints = body.MeshGeometry.Positions;
-            var correctPoints = bodyPoints.Where(c => circlePoints.Contains(new Point(Math.Round(c.X), Math.Round(c.Y))) == true);
-
-            MessageBox.Show(correctPoints.Count().ToString());
-
-
-            //add the points to the collision model as yellow?
-            var correctPointList = correctPoints.ToList();
-
-            var corrPointsNoDuplicates = correctPointList.Distinct().ToList();
-
-
-
-            MessageBox.Show(infoString);
 
             shortestDistanceGlobal = null;
 
@@ -522,6 +538,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
+                new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm, if vmat", (failMaxFSCheckList.Any() == true)? failBeams + " fail" : "all fields <15.6cm",  (failMaxFSCheckList.Any() == false)? true : false),
                 new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
 
 
@@ -955,6 +972,41 @@ namespace PlanChecks
             {
                 rpavail = "Yes";
             }
+        }
+
+        public static List<Beam> CheckMaxFieldSize(PlanSetup plan)
+        {
+            List<Beam> failMaxFSList = new List<Beam>();
+
+            List<Beam> vmatList = new List<Beam>();
+            foreach (var beam in plan.Beams)
+            {
+                if (beam.ControlPoints.First().GantryAngle != beam.ControlPoints.Last().GantryAngle)
+                {
+                    vmatList.Add(beam);
+
+                }
+
+            }
+            if (vmatList.Any())
+            {
+                foreach (var beam in vmatList)
+                {
+                    VRect<double> jawPoisitions = beam.ControlPoints.First().JawPositions;
+
+                    double xFieldSize = Math.Abs(jawPoisitions.X1) + Math.Abs(jawPoisitions.X2);
+
+                    if (xFieldSize > 156 )
+                    {
+                        failMaxFSList.Add(beam);
+                    }
+
+
+                }
+            }
+
+            return failMaxFSList;
+
         }
 
         public static string checkObjectives(PlanSetup plan)
@@ -2601,14 +2653,14 @@ namespace PlanChecks
 
         //}
 
-        public static void CreateVisualModel(List<Tuple<Point3D, string>>  every10thMesh, VVector isocenter, List<Point3D> every10thBody, PlanSetup plan)
+        public static void CreateVisualModel(List<Tuple<Point3D, string>>  every10thMesh, VVector isocenter, List<Point3D> every10thBody, /*List<Point3D> corrPointsNoDuplicates*/ PlanSetup plan)
         {
             //instantiate the model3D class we will add to the viewPort of Helix3D
             ModelVisual3D modelVisual3D = new ModelVisual3D();
 
 
 
-            PlotArcsInCollisionModel(every10thMesh, modelVisual3D, isocenter, every10thBody);
+            PlotArcsInCollisionModel(every10thMesh, modelVisual3D, isocenter, every10thBody /* corrPointsNoDuplicates*/);
 
 
             //orient the visual model correctly depending on treatment orientation
@@ -2702,7 +2754,7 @@ namespace PlanChecks
         }
 
 
-        public static void PlotArcsInCollisionModel(List<Tuple<Point3D, string>> every10thMesh, ModelVisual3D modelVisual3D, VVector isocenter, List<Point3D> every10thBody)
+        public static void PlotArcsInCollisionModel(List<Tuple<Point3D, string>> every10thMesh, ModelVisual3D modelVisual3D, VVector isocenter, List<Point3D> every10thBody /*List<Point3D> corrPointsNoDuplicates*/)
         {
             
             List<string> checkedBeams = new List<string>();
@@ -2751,6 +2803,19 @@ namespace PlanChecks
             globalModelVisual3D = modelVisual3D;
             //adds the body points to 3D view
             modelVisual3D.Children.Add(pointsVisual3D);
+
+            //for plotting body cutoff points on CT FOV
+            //PointsVisual3D pointsVisual3DCutoff = new PointsVisual3D()
+            //{
+            //    Color = Colors.Coral,
+            //    Size = 4,
+            //    Points = new Point3DCollection(corrPointsNoDuplicates)
+
+            //};
+            ////ads iso to view as a yellow block
+            //modelVisual3D.Children.Add(pointsVisual3DCutoff);
+
+
 
 
 
@@ -2992,7 +3057,7 @@ namespace PlanChecks
         {
             try
             {
-                PlotArcsInCollisionModel(arcMeshGlobalDisplay, globalModelVisual3D, context1.PlanSetup.Beams.FirstOrDefault(c=> c.IsSetupField==false).IsocenterPosition, bodyMeshGlobalDisplay );
+                PlotArcsInCollisionModel(arcMeshGlobalDisplay, globalModelVisual3D, context1.PlanSetup.Beams.FirstOrDefault(c=> c.IsSetupField==false).IsocenterPosition, bodyMeshGlobalDisplay /* cutoffMeshGlobal*/);
 
             }
             catch (Exception m)
