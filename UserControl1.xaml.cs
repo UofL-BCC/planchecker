@@ -626,15 +626,16 @@ namespace PlanChecks
 
             }
 
-            if (machname == "TrueBeamNE")
-            {
-                var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
-                if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
-                {
+            //take this out, we do SRS at NE now with 6DoF couch
+            //if (machname == "TrueBeamNE")
+            //{
+            //    var beamNE = plan.Beams.FirstOrDefault(s => s.IsSetupField != true);
+            //    if (beamNE.Technique.Id == "SRS ARC" || beamNE.Technique.Id == "SRS STATIC")
+            //    {
 
-                    OutputList1.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
-                }
-            }
+            //        OutputList1.Add(new Tuple<string, string, string, bool?>("Technique", "NO SRS AT NE", "NO SRS AT NE", false));
+            //    }
+            //}
 
             OutputList.Reverse();
             OutputListRX.Reverse();
