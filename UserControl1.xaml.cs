@@ -489,15 +489,7 @@ namespace PlanChecks
 
             ///////////////////////////////////////////////////////////////////
 
-            var failMaxFSCheckList = CheckMaxFieldSize(plan);
-            string failBeams = "";
-            if (failMaxFSCheckList.Any())
-            {
-                foreach (var beam in failMaxFSCheckList)
-                {
-                    failBeams += beam.Id + ";";
-                }
-            }
+            
 
 
             shortestDistanceGlobal = null;
@@ -538,7 +530,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
-                new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm, if vmat", (failMaxFSCheckList.Any() == true)? failBeams + " fail" : "all fields <15.6cm",  (failMaxFSCheckList.Any() == false)? true : false),
+
                 new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
 
 
@@ -625,6 +617,63 @@ namespace PlanChecks
                 OutputList1.Add(new Tuple<string, string, string, bool?>("Diff Coll Angles", "Different", diffCol, (diffCol == "Different") ? true : (bool?)null));
 
             }
+
+
+            //make max X FS check conditional on if plan has vmat or dynamic conformal arc
+            bool maxFSCheck = false;
+            foreach (var beam in plan.Beams)
+            {
+                if (beam.IsSetupField == false)
+                {
+                    if (beam.MLCPlanType.ToString() == "VMAT" || beam.MLCPlanType.ToString() == "ArcDynamic")
+                    {
+                        maxFSCheck = true;
+                    }
+                    
+                }
+            }
+
+            if (maxFSCheck)
+            {
+                var failMaxFSCheckList = CheckMaxFieldSize(plan);
+                string failBeams = "";
+                if (failMaxFSCheckList.Any())
+                {
+                    foreach (var beam in failMaxFSCheckList)
+                    {
+                        if (beam.MLCPlanType.ToString() == "ArcDynamic")
+                        {
+                            failBeams += beam.Id + " 3DConformalArc" + ";";
+                        }
+                        else
+                        {
+                            failBeams += beam.Id + ";";
+                        }
+                    }
+                }
+
+                bool? FSResult;
+                if (failBeams.Contains("3DConformalArc") & failMaxFSCheckList.Count() == 1)
+                {
+                    FSResult = null;
+                }
+                else if (failMaxFSCheckList.Any() & failBeams.Contains("3DConformalArc") == false)
+                {
+                    FSResult = false;
+
+                }
+                else
+                {
+                    FSResult = true;
+
+                }
+
+                OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
+            }
+            
+
+
+
 
             //take this out, we do SRS at NE now with 6DoF couch
             //if (machname == "TrueBeamNE")
@@ -982,6 +1031,7 @@ namespace PlanChecks
             List<Beam> vmatList = new List<Beam>();
             foreach (var beam in plan.Beams)
             {
+
                 if (beam.ControlPoints.First().GantryAngle != beam.ControlPoints.Last().GantryAngle)
                 {
                     vmatList.Add(beam);
