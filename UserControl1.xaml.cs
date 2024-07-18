@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -143,6 +143,12 @@ namespace PlanChecks
                 noDose = true;
                 ResResult = null;
             }
+
+            string planIntent = plan.PlanIntent;
+            if(planIntent != "CURATIVE" && planIntent != "PALLIATIVE" && planIntent != "PROPHYLACTIC") { planIntent = "CHECK INTENT"; }
+
+            double planNorm = plan.PlanNormalizationValue;
+           
 
 
             bool samerate = false;
@@ -404,7 +410,7 @@ namespace PlanChecks
             {
 
             }
-            double artifactChecked = checkArtifact(plan);
+            string artifactChecked = checkArtifact(plan);
 
             string fullcoverage = "No Dose";
 
@@ -506,7 +512,8 @@ namespace PlanChecks
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
-
+                
+                new Tuple<string, string, string, bool?>("PlanIntent", "Treatment", planIntent, (planIntent != "CHECK INTENT")? true: false),
                 new Tuple<string, string, string, bool?>("Calc Algo", algoexpected, algoused, algomatch),
                 new Tuple<string, string, string, bool?>("Calc Res (cm)", expectedRes.ToString(),  actualRes.ToString(), ResResult),
                 new Tuple<string, string, string, bool?>("Photon Heterogeneity", "ON", plan.PhotonCalculationOptions["HeterogeneityCorrection"], (plan.PhotonCalculationOptions["HeterogeneityCorrection"] == "ON")),
@@ -526,7 +533,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Tol Table Set", "All Fields", toleranceTables, (toleranceTables != "placeholder" && toleranceTables!= "Mixed Tables" && toleranceTables!= "Error" && toleranceTables!="Missing for some beams")? true:  false),
                 new Tuple<string, string, string, bool?>("Image and Tx Orientation", "Same", ((image.ImagingOrientation== plan.TreatmentOrientation) ? plan.TreatmentOrientation.ToString() : "DIFFERENT"), (image.ImagingOrientation== plan.TreatmentOrientation)),
                 //baseplate?
-                new Tuple<string, string, string, bool?>("Artifact HU", "0 HU, if present",  ((artifactChecked== 99999) ? "NONE FOUND" : artifactChecked.ToString()), (artifactChecked== 0 || artifactChecked==99999)? true : (bool?)null),
+                new Tuple<string, string, string, bool?>("Known Assigned HU", "if present",  artifactChecked, (!artifactChecked.ToLower().Contains("wrong"))? true :false),
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
@@ -668,9 +675,22 @@ namespace PlanChecks
 
                 }
 
+                string reviewedBy = plan.ApprovalHistory.Where(approvalhistory => approvalhistory.ApprovalStatus == PlanSetupApprovalStatus.Reviewed).FirstOrDefault().UserDisplayName;
+                string planApprovedBy = plan.ApprovalHistory.Where(approvalhistory => approvalhistory.ApprovalStatus == PlanSetupApprovalStatus.PlanningApproved).FirstOrDefault().UserDisplayName;
+
+                if (reviewedBy == null) reviewedBy = "NOT REVIEWED";
+                if (reviewedBy != "Joshua James" && reviewedBy != "Brian Vincent" && reviewedBy != "Megan Blackburn" && reviewedBy != "Keith Sowards" && reviewedBy != "Christine Swanson") reviewedBy = "NOT REVIEWED";
+
+                if (planApprovedBy != null) OutputList.Add(new Tuple<string, string, string, bool?>("Reviewed By Physics", "Reviewed", reviewedBy, (reviewedBy != "NOT REVIEWED") ? true : false));
+
                 OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
+                OutputList.Add(new Tuple<string, string, string, bool?>("Plan Normalization", "95% to 105%", (Math.Round(planNorm, 2)).ToString(), (planNorm >= 95 && planNorm <= 105) ? true : (bool?)null));
+
             }
-            
+
+
+
+
 
 
 
@@ -893,7 +913,7 @@ namespace PlanChecks
 
                 if (beamcount <= 1)
                 {
-                    return "NO";
+                    return "SKIP";
                 }
                 else if (beamcount <= 3)
                 {
@@ -1578,11 +1598,12 @@ namespace PlanChecks
                     if (structurex.GetAssignedHU(out assignedHU) && assignedHU != 99999)
                     {
                         string tempID = structurex.Id;
-                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail")
+                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail"
+                             && tempID != "VaginalMarker" && tempID != "Vaginal Marker")
                         {
                             if (structurex.StructureCode != null)
                             {
-                                if (structurex.StructureCode.DisplayName != "Artifact")
+                                if (structurex.StructureCode.DisplayName != "Artifact" && structurex.StructureCode.DisplayName != "Wire")
                                 {
 
                                     if (output != "") { output += "\n"; }
@@ -1598,18 +1619,76 @@ namespace PlanChecks
             if (output == "") { output = "None"; }
             return output;
         }
-        public static double checkArtifact(PlanSetup plan)
+        public static string checkArtifact(PlanSetup plan)
         {
-            var artifactStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.StructureCode.DisplayName == "Artifact");
-
+            string output = "";
             double assignedHU = 99999;
+
+            var artifactStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.StructureCode.DisplayName == "Artifact");
 
             if (artifactStructure != null)
             {
                 artifactStructure.GetAssignedHU(out assignedHU);
+                if (assignedHU != 0) { output += "WRONG HU"; }
+                if (output != "") { output += "\n"; }
+                output += artifactStructure.Id + " " + assignedHU.ToString();
 
             }
-            return assignedHU;
+            assignedHU = 99999;
+
+            var vagMarkerStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.Id == "VaginalMarker");
+
+            if (vagMarkerStructure != null)
+            {
+                vagMarkerStructure.GetAssignedHU(out assignedHU);
+                if (assignedHU != 0) { output += "WRONG HU"; }
+                if (output != "") { output += "\n"; }
+                output += vagMarkerStructure.Id + " " + assignedHU.ToString();
+
+            }
+            assignedHU = 99999;
+
+            vagMarkerStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.Id == "Vaginal marker");
+
+            if (vagMarkerStructure != null)
+            {
+                vagMarkerStructure.GetAssignedHU(out assignedHU);
+                if (assignedHU != 0) { output += "WRONG HU"; }
+                if (output != "") { output += "\n"; }
+                output += vagMarkerStructure.Id + " " + assignedHU.ToString();
+
+            }
+            assignedHU = 99999;
+
+            foreach (var wireStructure in plan.StructureSet.Structures.Where(s => s.StructureCode != null && s.StructureCode.DisplayName == "Wire").ToList())
+            {
+                if (wireStructure != null)
+                {
+                    wireStructure.GetAssignedHU(out assignedHU);
+                    if (assignedHU != -1000) { output += "WRONG HU"; }
+                    if (output != "") { output += "\n"; }
+                    output += wireStructure.Id + " " + assignedHU.ToString();
+
+                }
+            }
+
+            assignedHU = 99999;
+
+            foreach (var wireStructure in plan.StructureSet.Structures.Where(s =>  s.Id.ToLower().Contains("wire")).ToList())
+            {
+                if (wireStructure != null)
+                {
+                    wireStructure.GetAssignedHU(out assignedHU);
+                    if (assignedHU != -1000) { output += "WRONG HU"; }
+                    if (output != "") { output += "\n"; }
+                    output += wireStructure.Id + " " + assignedHU.ToString();
+
+                }
+            }
+
+            if (output == "") output = "NONE";
+
+            return output;
         }
 
 
@@ -1808,9 +1887,9 @@ namespace PlanChecks
                 var isoPoint = isoStructure.CenterPoint;
                 var originPoint = plan.StructureSet.Image.UserOrigin;
 
-                if (Math.Abs(isoPoint.x - originPoint.x) < 0.005 &&
-                    Math.Abs(isoPoint.y - originPoint.y) < 0.005 &&
-                    Math.Abs(isoPoint.z - originPoint.z) < 0.005)
+                if (Math.Abs(isoPoint.x - originPoint.x) < 0.02 &&
+                    Math.Abs(isoPoint.y - originPoint.y) < 0.02 &&
+                    Math.Abs(isoPoint.z - originPoint.z) < 0.02)
                 {
                     return true;
                 }

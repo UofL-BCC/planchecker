@@ -21,7 +21,7 @@
                 
 
 
-                <TextBox Text="Prescription Checks" BorderBrush="White" Height="60" VerticalAlignment="Top" 
+                <TextBox Text="Prescription Checks" BorderBrush="White" Height="32" 
                 Background="#FF96A2B7" BorderThickness="0" HorizontalAlignment="Center" 
                 FontSize="20" FontWeight="Bold" Width="200" />
 
@@ -50,7 +50,7 @@
 
 
 
-                <TextBox Text="Plan Checks" BorderBrush="White" Height="60" VerticalAlignment="Center" 
+                <TextBox Text="Plan Checks" BorderBrush="White" Height="28" 
                      Background="#FF96A2B7" BorderThickness="0" HorizontalAlignment="Center" 
                      FontSize="20" FontWeight="Bold" Width="128" />
 
