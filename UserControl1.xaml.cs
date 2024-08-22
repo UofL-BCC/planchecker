@@ -686,9 +686,17 @@ namespace PlanChecks
                 OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
                 OutputList.Add(new Tuple<string, string, string, bool?>("Plan Normalization", "95% to 105%", (Math.Round(planNorm, 2)).ToString(), (planNorm >= 95 && planNorm <= 105) ? true : (bool?)null));
 
+               
+
+
+
             }
 
+            if (plan.StructureSet.Image.Id.ToLower().Contains("bh"))
+            {
+                OutputList.Add(new Tuple<string, string, string, bool?>("CT Image", plan.StructureSet.Image.Id, ((plan.UseGating) ? "GATED" : "NOT GATED"), plan.UseGating));
 
+            }
 
 
 
@@ -1599,11 +1607,13 @@ namespace PlanChecks
                     {
                         string tempID = structurex.Id;
                         if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail"
-                             && tempID != "VaginalMarker" && tempID != "Vaginal Marker")
+                            // && tempID != "VaginalMarker" && tempID != "Vaginal Marker"
+                             )
                         {
                             if (structurex.StructureCode != null)
                             {
-                                if (structurex.StructureCode.DisplayName != "Artifact" && structurex.StructureCode.DisplayName != "Wire")
+                                if (structurex.StructureCode.DisplayName != "Artifact")
+                                    //&& structurex.StructureCode.DisplayName != "Wire" && !structurex.Id.ToLower().Contains("wire"))
                                 {
 
                                     if (output != "") { output += "\n"; }
@@ -1634,6 +1644,8 @@ namespace PlanChecks
                 output += artifactStructure.Id + " " + assignedHU.ToString();
 
             }
+            return output;
+
             assignedHU = 99999;
 
             var vagMarkerStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.Id == "VaginalMarker");
@@ -1674,7 +1686,7 @@ namespace PlanChecks
 
             assignedHU = 99999;
 
-            foreach (var wireStructure in plan.StructureSet.Structures.Where(s =>  s.Id.ToLower().Contains("wire")).ToList())
+            foreach (var wireStructure in plan.StructureSet.Structures.Where(s =>  s.Id.ToLower().Contains("wire") && !s.Id.ToLower().Contains("iso")).ToList())
             {
                 if (wireStructure != null)
                 {
