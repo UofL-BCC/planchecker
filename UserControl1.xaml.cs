@@ -145,10 +145,10 @@ namespace PlanChecks
             }
 
             string planIntent = plan.PlanIntent;
-            if(planIntent != "CURATIVE" && planIntent != "PALLIATIVE" && planIntent != "PROPHYLACTIC") { planIntent = "CHECK INTENT"; }
+            if (planIntent != "CURATIVE" && planIntent != "PALLIATIVE" && planIntent != "PROPHYLACTIC") { planIntent = "CHECK INTENT"; }
 
             double planNorm = plan.PlanNormalizationValue;
-           
+
 
 
             bool samerate = false;
@@ -495,7 +495,7 @@ namespace PlanChecks
 
             ///////////////////////////////////////////////////////////////////
 
-            
+
 
 
             shortestDistanceGlobal = null;
@@ -512,7 +512,7 @@ namespace PlanChecks
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
             {
-                
+
                 new Tuple<string, string, string, bool?>("PlanIntent", "Treatment", planIntent, (planIntent != "CHECK INTENT")? true: false),
                 new Tuple<string, string, string, bool?>("Calc Algo", algoexpected, algoused, algomatch),
                 new Tuple<string, string, string, bool?>("Calc Res (cm)", expectedRes.ToString(),  actualRes.ToString(), ResResult),
@@ -523,7 +523,7 @@ namespace PlanChecks
 
 
 
-                new Tuple<string, string, string, bool?>("User Origin matches CT ISO", "Match", findIsoStructure(plan).ToString(),   findIsoStructure(plan)),
+                new Tuple<string, string, string, bool?>("User Origin matches CT ISO", "Match", findIsoStructure(plan),  (findIsoStructure(plan) == "MATCHES")? true: (bool?)null  ),
                 new Tuple<string, string, string, bool?>("Same Machine", "All Fields", machname, onemachine),
                 new Tuple<string, string, string, bool?>("Same Iso", "All Fields", isoname, sameiso),
                 new Tuple<string, string, string, bool?>("Same Tech", "All Fields", techname, sametech),
@@ -625,6 +625,9 @@ namespace PlanChecks
 
             }
 
+           
+
+
 
             //make max X FS check conditional on if plan has vmat or dynamic conformal arc
             bool maxFSCheck = false;
@@ -686,9 +689,17 @@ namespace PlanChecks
                 OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
                 OutputList.Add(new Tuple<string, string, string, bool?>("Plan Normalization", "95% to 105%", (Math.Round(planNorm, 2)).ToString(), (planNorm >= 95 && planNorm <= 105) ? true : (bool?)null));
 
-               
+                if (!planHasSpecialChar(plan))
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Plan Name", "No Special Characters", "FALSE", false));
 
+                }
+                if (!fieldHasSpecialChar(plan))
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Field Name", "No Special Characters", "FALSE", false));
 
+                }
+                
 
             }
 
@@ -778,6 +789,46 @@ namespace PlanChecks
 
             
 
+        }
+
+        public static bool planHasSpecialChar(PlanSetup plan)
+         {
+            string input = plan.Id;
+
+            bool result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':');
+
+            return result;
+            
+        }
+
+        public static bool structureHasSpecialChar(PlanSetup plan)
+        {
+            string input = "";
+            bool result = true;
+
+            foreach (Structure structurex in plan.StructureSet.Structures)
+            {
+                input = structurex.Id;
+                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-');
+                if (!result) { return result; } //if ever find a false, exit loop now. it's false. 
+
+            }
+            return result;
+        }
+
+        public static bool fieldHasSpecialChar(PlanSetup plan)
+        {
+            string input = "";
+            bool result = true;
+
+            foreach (var beam in plan.Beams)
+            {
+                input = beam.Id;
+                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-' );
+                if (!result) { return result; } //if ever find a false, exit loop now. it's false. 
+
+            }
+            return result;
         }
 
         public static string findLaterality(PlanSetup plan)
@@ -1888,26 +1939,39 @@ namespace PlanChecks
 
         }
 
-        public static bool findIsoStructure(PlanSetup plan)
+        public static string findIsoStructure(PlanSetup plan)
         {
+            string result = "FAIL";
 
-            var isoStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.Id.ToLower().Contains("iso") && s.DicomType != "MARKER");
+            var isoStructures = plan.StructureSet.Structures.Where(s => s.Id.ToLower().Contains("iso") && s.DicomType != "MARKER").ToList();
+
+            int isos = isoStructures.Count();
+
+            //MessageBox.Show(isoStructures.Count().ToString());
             //iso structure and iso marker may vary slighty. we are going to rely on the structure. 
 
-            if (isoStructure != null)
+            if (isoStructures.Any())
             {
-                var isoPoint = isoStructure.CenterPoint;
-                var originPoint = plan.StructureSet.Image.UserOrigin;
-
-                if (Math.Abs(isoPoint.x - originPoint.x) < 0.02 &&
-                    Math.Abs(isoPoint.y - originPoint.y) < 0.02 &&
-                    Math.Abs(isoPoint.z - originPoint.z) < 0.02)
+                foreach (var isoStruct in isoStructures)
                 {
-                    return true;
+                    var isoPoint = isoStruct.CenterPoint;
+                    var originPoint = plan.StructureSet.Image.UserOrigin;
+
+                    if (Math.Abs(isoPoint.x - originPoint.x) < 0.02 &&
+                        Math.Abs(isoPoint.y - originPoint.y) < 0.02 &&
+                        Math.Abs(isoPoint.z - originPoint.z) < 0.02)
+                    {
+                        if (isos > 1) { result = isoStruct.Id; }
+                        else { result = "MATCHES"; }
+                        
+                    }
+
                 }
+
+                    
             }
 
-            return false;
+            return result;
         }
 
         public static (List<Point3D> , List<Tuple<Point3D, string>>) GetBodyAndGantryMeshes(PlanSetup plan)
