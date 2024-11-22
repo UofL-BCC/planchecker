@@ -508,6 +508,21 @@ namespace PlanChecks
             AssignBodyAndMeshGlobal(meshes.Item2, meshes.Item1);
             CreateVisualModel(arcMeshGlobalDisplay, isocenter, bodyMeshGlobalDisplay, plan);
 
+            bool planHasTargetVolume = false;
+            bool planHasIGV = false;
+
+            if (plan.TargetVolumeID != "" && plan.TargetVolumeID != null && getPlanMode(plan)=="PHOTON")
+            {
+                planHasTargetVolume = true;
+
+                var IGVStructure = plan.StructureSet.Structures.Where(s => s.Id.ToLower().Contains("igv")).FirstOrDefault();
+                if (IGVStructure != null) 
+                {
+                    planHasIGV = true;
+                }
+            }
+            
+
 
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
@@ -536,6 +551,8 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Known Assigned HU", "if present",  artifactChecked, (!artifactChecked.ToLower().Contains("wrong"))? true :false),
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
+                new Tuple<string, string, string, bool?>("IGV Structure", (planHasTargetVolume)? "Plan Target": "No Plan Target" , (planHasIGV)? "IGV Found": "No IGV Found",  ((planHasTargetVolume&&planHasIGV)||(!planHasTargetVolume&&!planHasIGV))? true : false),
+
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
 
                 new Tuple<string, string, string, bool?>("Wedges MU", ">=20", checkWedgeMU,  (checkWedgeMU == "Wedges ok" || checkWedgeMU == "No wedges")? true : false),
@@ -795,7 +812,7 @@ namespace PlanChecks
          {
             string input = plan.Id;
 
-            bool result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':');
+            bool result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == ' ');
 
             return result;
             
@@ -809,7 +826,7 @@ namespace PlanChecks
             foreach (Structure structurex in plan.StructureSet.Structures)
             {
                 input = structurex.Id;
-                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-');
+                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-' | c == ' ');
                 if (!result) { return result; } //if ever find a false, exit loop now. it's false. 
 
             }
@@ -824,7 +841,7 @@ namespace PlanChecks
             foreach (var beam in plan.Beams)
             {
                 input = beam.Id;
-                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-' );
+                result = input.All(c => Char.IsLetterOrDigit(c) || c == '_' | c == ':' | c == '-' | c == ' ');
                 if (!result) { return result; } //if ever find a false, exit loop now. it's false. 
 
             }
@@ -1753,6 +1770,8 @@ namespace PlanChecks
 
             return output;
         }
+
+      
 
 
         public static string findEmptyStructure(PlanSetup plan)
