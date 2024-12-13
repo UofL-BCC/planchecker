@@ -511,7 +511,7 @@ namespace PlanChecks
             bool planHasTargetVolume = false;
             bool planHasIGV = false;
 
-            if (plan.TargetVolumeID != "" && plan.TargetVolumeID != null && getPlanMode(plan)=="PHOTON")
+            if (plan.TargetVolumeID != "" && plan.TargetVolumeID != null && jawtrackingexpected == "Enabled")
             {
                 planHasTargetVolume = true;
 
@@ -551,7 +551,7 @@ namespace PlanChecks
                 new Tuple<string, string, string, bool?>("Known Assigned HU", "if present",  artifactChecked, (!artifactChecked.ToLower().Contains("wrong"))? true :false),
                 new Tuple<string, string, string, bool?>("Other Assigned HU",  "None",  getDensityOverrides(plan),  (getDensityOverrides(plan)=="None")? true : (bool?)null),
                 new Tuple<string, string, string, bool?>("Empty Structures", "None", findEmptyStructure(plan), (findEmptyStructure(plan)== "None")),
-                new Tuple<string, string, string, bool?>("IGV Structure", (planHasTargetVolume)? "Plan Target": "No Plan Target" , (planHasIGV)? "IGV Found": "No IGV Found",  ((planHasTargetVolume&&planHasIGV)||(!planHasTargetVolume&&!planHasIGV))? true : false),
+                new Tuple<string, string, string, bool?>("IGV Structure", (planHasTargetVolume)? "Plan Target": "None Needed" , (planHasIGV)? "IGV Found": "No IGV Found",  ((planHasTargetVolume&&planHasIGV)||(!planHasTargetVolume&&!planHasIGV))? true : false),
 
                 new Tuple<string, string, string, bool?>("Jaw Tracking", jawtrackingexpected.ToString(), isJawTrackingOn.ToString(),  (isJawTrackingOn == jawtrackingexpected)? true : false),
 
@@ -1139,16 +1139,18 @@ namespace PlanChecks
             {
                 foreach (var beam in vmatList)
                 {
-                    VRect<double> jawPoisitions = beam.ControlPoints.First().JawPositions;
-
-                    double xFieldSize = Math.Abs(jawPoisitions.X1) + Math.Abs(jawPoisitions.X2);
-
-                    if (xFieldSize > 156 )
+                    foreach (var controlPoint in beam.ControlPoints)
                     {
-                        failMaxFSList.Add(beam);
+                        VRect<double> jawPositions = controlPoint.JawPositions;
+
+                        double xFieldSize = Math.Abs(jawPositions.X1) + Math.Abs(jawPositions.X2);
+
+                        if (xFieldSize > 156)
+                        {
+                            failMaxFSList.Add(beam);
+                            break;
+                        }
                     }
-
-
                 }
             }
 
@@ -1447,6 +1449,8 @@ namespace PlanChecks
                                 tech = "IMRT";
                             }
                             numControlPts = 0;
+
+                            
                         }
                         else
                         {
