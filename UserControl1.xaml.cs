@@ -727,7 +727,46 @@ namespace PlanChecks
             }
 
 
+            double minMUDEG = 99999;
+            bool atleastoneVMATARCDYN = false;
 
+            foreach (var beam in plan.Beams)
+            {
+                if (beam.MLCPlanType.ToString() == "VMAT" || beam.MLCPlanType.ToString() == "ArcDynamic")
+                {
+                    atleastoneVMATARCDYN = true;
+
+                    // Get from plan:
+                    var metersetWeights = beam.ControlPoints.Select(cp => cp.MetersetWeight).ToList();
+                    var gantryAngles = beam.ControlPoints.Select(ga => ga.GantryAngle).ToList();
+                    var monitorUnit = beam.Meterset.Value;
+
+                    double dMW = 0.0;
+                    double dangle = 0.0;
+
+                    for (int k = 0; k < metersetWeights.Count() - 1; k++)
+                    {
+                        dMW = (metersetWeights[k + 1] - metersetWeights[k]) * monitorUnit;
+                        dangle = (180.0 - Math.Abs((Math.Abs(gantryAngles[k + 1] - gantryAngles[k]) - 180.0)));
+                        if ((dMW / dangle) < minMUDEG)
+                        {
+                            minMUDEG = dMW / dangle;
+                        }
+                    }
+                }
+            }
+
+            if (atleastoneVMATARCDYN)
+            {
+                if (minMUDEG <= 0.1)
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Minimum MU/Deg", ">0.1", Math.Round(minMUDEG, 2).ToString(), false));
+                }
+                else
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Minimum MU/Deg", ">0.1", Math.Round(minMUDEG, 2).ToString(), true));
+                }
+            }
 
 
 
