@@ -748,7 +748,7 @@ namespace PlanChecks
                     {
                         dMW = (metersetWeights[k + 1] - metersetWeights[k]) * monitorUnit;
                         dangle = (180.0 - Math.Abs((Math.Abs(gantryAngles[k + 1] - gantryAngles[k]) - 180.0)));
-                        if ((dMW / dangle) < minMUDEG)
+                        if ((dMW / dangle) < minMUDEG && dMW>0)
                         {
                             minMUDEG = dMW / dangle;
                         }
@@ -1713,24 +1713,16 @@ namespace PlanChecks
             {
                 if (structurex != null)
                 {
-
+                    
                     if (structurex.GetAssignedHU(out assignedHU) && assignedHU != 99999)
                     {
                         string tempID = structurex.Id;
-                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail"
-                            // && tempID != "VaginalMarker" && tempID != "Vaginal Marker"
-                             )
+                        if (tempID != "CouchInterior" && tempID != "CouchSurface" && tempID != "LeftInnerRail" && tempID != "LeftOuterRail" && tempID != "RightInnerRail" && tempID.ToLower() != "artifact" && tempID != "RightOuterRail")
                         {
-                            if (structurex.StructureCode != null)
-                            {
-                                if (structurex.StructureCode.DisplayName != "Artifact")
-                                    //&& structurex.StructureCode.DisplayName != "Wire" && !structurex.Id.ToLower().Contains("wire"))
-                                {
-
-                                    if (output != "") { output += "\n"; }
-                                    output += structurex.Id + " " + assignedHU.ToString();
-                                }
-                            }
+                            if (output != "") { output += "\n"; }
+                            output += structurex.Id + " " + assignedHU.ToString();
+                               
+                            
                         }
                     }
                 }
@@ -1745,14 +1737,14 @@ namespace PlanChecks
             string output = "";
             double assignedHU = 99999;
 
-            var artifactStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.StructureCode != null && s.StructureCode.DisplayName == "Artifact");
+            var artifactStructure = plan.StructureSet.Structures.FirstOrDefault(s => s.Id.ToLower().Contains("artifact"));
 
             if (artifactStructure != null)
             {
                 artifactStructure.GetAssignedHU(out assignedHU);
                 if (assignedHU != 0) { output += "WRONG HU"; }
                 if (output != "") { output += "\n"; }
-                output += artifactStructure.Id + " " + assignedHU.ToString();
+                output += artifactStructure.Id; // + " " + assignedHU.ToString();
 
             }
             return output;
