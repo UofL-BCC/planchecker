@@ -521,8 +521,8 @@ namespace PlanChecks
                     planHasIGV = true;
                 }
             }
-            
 
+            
 
 
             List<Tuple<string, string, string, bool?>> OutputList1 = new List<Tuple<string, string, string, bool?>>()
@@ -698,13 +698,26 @@ namespace PlanChecks
                 string reviewedBy = plan.ApprovalHistory.Where(approvalhistory => approvalhistory.ApprovalStatus == PlanSetupApprovalStatus.Reviewed).FirstOrDefault().UserDisplayName;
                 string planApprovedBy = plan.ApprovalHistory.Where(approvalhistory => approvalhistory.ApprovalStatus == PlanSetupApprovalStatus.PlanningApproved).FirstOrDefault().UserDisplayName;
 
+
                 if (reviewedBy == null) reviewedBy = "NOT REVIEWED";
                 if (reviewedBy != "Joshua James" && reviewedBy != "Brian Vincent" && reviewedBy != "Megan Blackburn" && reviewedBy != "Keith Sowards" && reviewedBy != "Christine Swanson") reviewedBy = "NOT REVIEWED";
 
-                if (planApprovedBy != null) OutputList.Add(new Tuple<string, string, string, bool?>("Reviewed By Physics", "Reviewed", reviewedBy, (reviewedBy != "NOT REVIEWED") ? true : false));
+                if (techname == "VMAT" || techname == "SRS/SBRT" || techname == "IMRT")
+                {
+                    if (planApprovedBy != null) OutputList.Add(new Tuple<string, string, string, bool?>("Reviewed By Physics", "Reviewed", reviewedBy, (reviewedBy != "NOT REVIEWED") ? true : false));
+                    OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
 
-                OutputList.Add(new Tuple<string, string, string, bool?>("Max X Jaw Size", "<15.6cm", (failMaxFSCheckList.Any() == true) ? failBeams + " fail" : "all fields <15.6cm", FSResult));
+                }
                 OutputList.Add(new Tuple<string, string, string, bool?>("Plan Normalization", "95% to 105%", (Math.Round(planNorm, 2)).ToString(), (planNorm >= 95 && planNorm <= 105) ? true : (bool?)null));
+
+                var pacemaker = plan.StructureSet.Structures.FirstOrDefault(s => s.Id.ToLower().Contains("pacemaker"));
+
+                if (pacemaker != null) {
+                    OutputList.Add(new Tuple<string, string, string, bool?>("Pacemaker", "6 or 6FFF only", getPlanEnergy(plan), (getPlanEnergy(plan) == "6X" || getPlanEnergy(plan) == "6X-FFF") ? true : false));
+                 }
+
+
+
 
                 if (!planHasSpecialChar(plan))
                 {
@@ -755,6 +768,31 @@ namespace PlanChecks
                     }
                 }
             }
+
+            string modeZ = getPlanMode(plan);
+            if (modeZ == "ELECTRON")
+            {
+                if (plan.Dose.DoseMax3D.Dose != 0)
+                {
+                    if (plan.Dose.DoseMax3D.Dose < 115)
+                    {
+                        OutputList1.Add(new Tuple<string, string, string, bool?>("Max Electron Dose", "<115%", Math.Round(plan.Dose.DoseMax3D.Dose, 2).ToString(), true));
+                    }
+                    else
+                    {
+                        OutputList1.Add(new Tuple<string, string, string, bool?>("Max Electron Dose", "<115%", Math.Round(plan.Dose.DoseMax3D.Dose, 2).ToString(), false));
+
+                    }
+
+                }
+                else
+                {
+                    //no dose
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Max Electron Dose", "<115%", "NO DOSE", false));
+
+                }
+            }
+
 
             if (atleastoneVMATARCDYN)
             {
@@ -1640,13 +1678,13 @@ namespace PlanChecks
 
                 global_DMax = plan.Dose.DoseMax3D.Dose;
 
-                var PTVStructures = plan.StructureSet.Structures.Where(s => s.StructureCode != null && (s.DicomType == "PTV"))
+                var PTVStructures = plan.StructureSet.Structures.Where(s => s.DicomType == "PTV")
                                                          .OrderBy(s => s.Id)
                                                          .Select(s => s);
-                var CTVStructures = plan.StructureSet.Structures.Where(s => s.StructureCode != null && (s.DicomType == "CTV"))
+                var CTVStructures = plan.StructureSet.Structures.Where(s => s.DicomType == "CTV")
                                                         .OrderBy(s => s.Id)
                                                         .Select(s => s);
-                var GTVStructures = plan.StructureSet.Structures.Where(s => s.StructureCode != null && (s.DicomType == "GTV"))
+                var GTVStructures = plan.StructureSet.Structures.Where(s => s.DicomType == "GTV")
                                                         .OrderBy(s => s.Id)
                                                         .Select(s => s);
 
