@@ -592,8 +592,11 @@ namespace PlanChecks
             string findLat = findLaterality(plan);
             if (plan.RTPrescription != null)
             {
+                if(findLat == "NAN")
+                {
 
-                if (plan.RTPrescription.Id.ToLower().Contains("prostate") && findLat == "CENTRAL")
+                }
+                else if (plan.RTPrescription.Id.ToLower().Contains("prostate") && findLat == "CENTRAL")
                 {
                     OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, true));
 
@@ -642,7 +645,27 @@ namespace PlanChecks
 
             }
 
-           
+            //                OutputList2.Add(new Tuple<string, string, string, bool?>("Gating", ((plan.RTPrescription.Gating == "") ? "NOT GATED" : plan.RTPrescription.Gating), ((plan.UseGating) ? "GATED" : "NOT GATED"), evalGated(plan)));
+
+            if (plan.Id.ToLower().Contains("bh_") || plan.Id.ToLower().Contains("g_"))
+            {
+                //breathhold or gating plan expected
+                if (plan.UseGating) { 
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("G_ or BH_ Name", "Gating", "Gating", true));
+                }
+                else
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("G_ or BH_ Name", "Gating", "NOT GATED", false));
+                }
+            }
+
+            else
+            {
+                if (plan.UseGating)
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("G_ or BH_ Name", "Gating", "PLAN NAME PREFIX", false));
+                }
+            }
 
 
 
@@ -1305,9 +1328,9 @@ namespace PlanChecks
                 if (beam.Wedges.Count() > 0)
                 { //beam has wedge
                     anywedges = true;
-                    if (Math.Round(beam.Meterset.Value) < 20)
+                    if (beam.Meterset.Value < 20.00)
                     {
-                        result = Math.Round(beam.Meterset.Value).ToString();
+                        result = beam.Meterset.Value.ToString("G17");
                     }
                 }
             }
@@ -1726,7 +1749,11 @@ namespace PlanChecks
                 samemax = (global_DMax == PTV_DMax) ? true : false;
 
                 //this is more likely in 3D plans. Make distinction for that here? 
-                if (global_DMax != PTV_DMax)
+                if ( PTV_DMax == 0.00)
+                {
+                    volname = "NO TARGETS";
+                }
+                else if (global_DMax != PTV_DMax )
                 {
                     volname = "OUTSIDE OF TARGETS";
                 }
