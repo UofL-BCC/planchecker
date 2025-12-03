@@ -10,6 +10,7 @@
     <UserControl.Background>
         <SolidColorBrush Color="#FF96A2B7"/>
     </UserControl.Background>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
     <Grid>
 
         <StackPanel Name="HorizontalStackPanel" Orientation="Horizontal" HorizontalAlignment="Left" Width="1390">
@@ -117,4 +118,5 @@
 
         </StackPanel>
     </Grid>
+    </ScrollViewer>
 </UserControl>
