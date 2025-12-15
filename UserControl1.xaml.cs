@@ -1243,7 +1243,7 @@ namespace PlanChecks
                     {
                         VRect<double> jawPositions = controlPoint.JawPositions;
 
-                        double xFieldSize = Math.Abs(jawPositions.X1) + Math.Abs(jawPositions.X2);
+                        double xFieldSize = -jawPositions.X1 + jawPositions.X2;
 
                         if (xFieldSize > 156)
                         {
