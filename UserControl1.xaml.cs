@@ -162,9 +162,9 @@ namespace PlanChecks
 
             if (temp == "PHOTON")
             {
-                algoexpected = "AAA_1610";
+                algoexpected = "AAA_1811";
                 algoused = plan.PhotonCalculationModel;
-                algomatch = (plan.PhotonCalculationModel == "AAA_1610");
+                algomatch = (plan.PhotonCalculationModel == "AAA_1811");
             }
             else if (temp == "ELECTRON")
             {
