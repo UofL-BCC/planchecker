@@ -160,11 +160,24 @@ namespace PlanChecks
             string algoused = "UNKNOWN";
             bool algomatch = false;
 
-            if (temp == "PHOTON")
+            bool lungplan = false;
+            string rxsite = plan.RTPrescription.Site.ToLower();
+
+            if (rxsite.Contains("lul") || rxsite.Contains("lll") || rxsite.Contains("rul") || rxsite.Contains("rll") || rxsite.Contains("bronchus") || rxsite.Contains("lung") || rxsite.Contains("hilum"))
             {
-                algoexpected = "AAA_1811";
+                lungplan = true;
+            }
+
+
+                if (temp == "PHOTON")
+            {
                 algoused = plan.PhotonCalculationModel;
-                algomatch = (plan.PhotonCalculationModel == "AAA_1811");
+
+                if (lungplan == false) algoexpected = "AAA_1811";
+                else algoexpected = "AcurosXB_1811";
+               
+                algomatch = (plan.PhotonCalculationModel == algoexpected);
+
             }
             else if (temp == "ELECTRON")
             {
