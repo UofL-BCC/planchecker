@@ -165,7 +165,7 @@ namespace PlanChecks
 
             if (rxsite.Contains("lul") || rxsite.Contains("lll") || rxsite.Contains("rul") || rxsite.Contains("rll") || rxsite.Contains("bronchus") || rxsite.Contains("lung") || rxsite.Contains("hilum"))
             {
-                lungplan = true;
+               lungplan = true;
             }
 
 
@@ -173,7 +173,8 @@ namespace PlanChecks
             {
                 algoused = plan.PhotonCalculationModel;
 
-                if (lungplan == false) algoexpected = "AAA_1811";
+                if (lungplan == false) 
+                    algoexpected = "AAA_1811";
                 else algoexpected = "AcurosXB_1811";
                
                 algomatch = (plan.PhotonCalculationModel == algoexpected);
@@ -1449,7 +1450,7 @@ namespace PlanChecks
             }
             else if (techname == "SRS/SBRT")
             {
-                if (plan.RTPrescription.Technique.ToLower() == "srs" || plan.RTPrescription.Technique.ToLower() == "sbrt")
+                if (plan.RTPrescription.Technique.ToLower() == "srs" || plan.RTPrescription.Technique.ToLower().Contains("sbrt") )
                 {
                     techpass = true;
                 }
