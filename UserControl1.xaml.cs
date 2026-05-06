@@ -346,7 +346,7 @@ namespace PlanChecks
                 //List<Tuple<string, string, string, bool?>> OutputList2 = new List<Tuple<string, string, string, bool?>>()
                 //{
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Approval", plan.RTPrescription.Status, ((plan.PlanningApproverDisplayName != "") ? "PlanningApproved" : "Not PlanningApproved"), ((plan.RTPrescription.Status == "Approved") ? true : false)));
-                OutputList2.Add(new Tuple<string, string, string, bool?>("By", plan.RTPrescription.HistoryUserDisplayName, plan.PlanningApproverDisplayName, (((plan.RTPrescription.HistoryUserDisplayName.ToLower().Contains("attending")) && (plan.RTPrescription.HistoryUserDisplayName == plan.PlanningApproverDisplayName)) ? true : (bool?)null)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("By", plan.RTPrescription.HistoryUserDisplayName, plan.PlanningApproverDisplayName, (((plan.RTPrescription.HistoryUserDisplayName.ToLower().Contains("attending")|| plan.RTPrescription.HistoryUserDisplayName.ToLower().Contains("odume")) && (plan.RTPrescription.HistoryUserDisplayName == plan.PlanningApproverDisplayName)) ? true : (bool?)null)));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("# of Fx", NumOfFx, plan.NumberOfFractions.ToString(), (NumOfFx == plan.NumberOfFractions.ToString())));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Dose/Fx", DosePerFx, plan.DosePerFraction.ToString(), (DosePerFx == plan.DosePerFraction.ToString())));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Mode", modes, getPlanMode(plan), (modes == getPlanMode(plan))));
