@@ -163,7 +163,7 @@ namespace PlanChecks
             bool lungplan = false;
             string rxsite = plan.RTPrescription.Site.ToLower();
 
-            if (rxsite.Contains("lul") || rxsite.Contains("lll") || rxsite.Contains("rul") || rxsite.Contains("rll") || rxsite.Contains("bronchus") || rxsite.Contains("lung") || rxsite.Contains("hilum"))
+            if (rxsite.Contains("lul") || rxsite.Contains("lll") || rxsite.Contains("rul") || rxsite.Contains("rll") || rxsite.Contains("bronchus") || rxsite.Contains("lung") || rxsite.Contains("hilum") || rxsite.Contains("lobe"))
             {
                lungplan = true;
             }
@@ -767,6 +767,14 @@ namespace PlanChecks
 
                 }
                 
+
+            }
+
+            
+
+            if (lungplan==true && getPlanEnergy(plan).Contains("18X")) 
+            {
+                OutputList.Add(new Tuple<string, string, string, bool?>("Lung Plan", "<18x", "18x", false));
 
             }
 
