@@ -350,7 +350,7 @@ namespace PlanChecks
                 OutputList2.Add(new Tuple<string, string, string, bool?>("# of Fx", NumOfFx, plan.NumberOfFractions.ToString(), (NumOfFx == plan.NumberOfFractions.ToString())));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Dose/Fx", DosePerFx, plan.DosePerFraction.ToString(), (DosePerFx == plan.DosePerFraction.ToString())));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Mode", modes, getPlanMode(plan), (modes == getPlanMode(plan))));
-                OutputList2.Add(new Tuple<string, string, string, bool?>("Target", TargetID, plan.TargetVolumeID, ((TargetID == plan.TargetVolumeID) ? true : (bool?)null)));
+                OutputList2.Add(new Tuple<string, string, string, bool?>("Target", TargetID, plan.TargetVolumeID, ((TargetID.ToLower() == plan.TargetVolumeID.ToLower()) ? true : (bool?)null)));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Energy", energies, getPlanEnergy(plan), (energies == getPlanEnergy(plan))));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Technique", plan.RTPrescription.Technique, techname, ((techpass) ? true : (bool?)null)));
                 OutputList2.Add(new Tuple<string, string, string, bool?>("Gating", ((plan.RTPrescription.Gating == "") ? "NOT GATED" : plan.RTPrescription.Gating), ((plan.UseGating) ? "GATED" : "NOT GATED"), evalGated(plan)));
