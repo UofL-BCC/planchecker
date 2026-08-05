@@ -182,9 +182,9 @@ namespace PlanChecks
             }
             else if (temp == "ELECTRON")
             {
-                algoexpected = "EMC_1610";
+                algoexpected = "EMC_1811";
                 algoused = plan.ElectronCalculationModel;
-                algomatch = (plan.ElectronCalculationModel == "EMC_1610");
+                algomatch = (plan.ElectronCalculationModel == "EMC_1811");
             }
 
             List<string> couches = new List<string>();
@@ -643,6 +643,13 @@ namespace PlanChecks
                     OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
 
                 }
+                else if ((plan.RTPrescription.Id.ToLower().Contains("L2") ||
+                    plan.RTPrescription.Id.ToLower().Contains("L1") ||
+                    plan.RTPrescription.Id.ToLower().Contains("L3")) && findLat != "CENTRAL")
+                {
+                    OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, false));
+
+                }
                 else
                 {
                     OutputList1.Add(new Tuple<string, string, string, bool?>("Target Laterality", plan.RTPrescription.Id, findLat, (bool?)null));
@@ -974,14 +981,14 @@ namespace PlanChecks
         {
             var body = plan.StructureSet.Structures.Where(c => (c.DicomType == "EXTERNAL") || (c.DicomType == "BODY")).FirstOrDefault();
 
-            var targetStructure = plan.StructureSet.Structures.Where(c => (c.DicomType.ToLower().Contains("ptv")) || (c.DicomType.ToLower().Contains("ctv")) || (c.DicomType.ToLower().Contains("gtv"))).FirstOrDefault();
+            var targetStructure = plan.StructureSet.Structures.Where(c => (c.Id == plan.TargetVolumeID)).FirstOrDefault();
             if (targetStructure == null) { return "NAN"; }
             string laterality = "";
-            if (body.CenterPoint.x - targetStructure.CenterPoint.x > 10)
+            if (body.CenterPoint.x - targetStructure.CenterPoint.x > 50)
             {
                 laterality = "RIGHT";
             }
-            else if (body.CenterPoint.x - targetStructure.CenterPoint.x < -10)
+            else if (body.CenterPoint.x - targetStructure.CenterPoint.x < -50)
             {
                 laterality = "LEFT";
             }
@@ -1469,6 +1476,10 @@ namespace PlanChecks
                 techpass = true;
             }
             else if (plan.RTPrescription.Technique == "IMRT" && techname == "VMAT")
+            {
+                techpass = true;
+            }
+            else if (plan.RTPrescription.Technique == "en-face" && techname.Contains("en-face"))
             {
                 techpass = true;
             }
